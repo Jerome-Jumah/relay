@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-
-import 'router/app-router.dart';
-import 'theme/relay-theme.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:relay/app/relay_router.dart';
+import 'package:relay/app/theme/relay_theme.dart';
 
 class RelayApp extends StatefulWidget {
   const RelayApp({super.key});
@@ -11,7 +10,7 @@ class RelayApp extends StatefulWidget {
 }
 
 class _RelayAppState extends State<RelayApp> {
-  final _router = createAppRouter();
+  final _router = createRelayRouter();
 
   @override
   void dispose() {
@@ -25,6 +24,7 @@ class _RelayAppState extends State<RelayApp> {
     debugShowCheckedModeBanner: false,
     theme: RelayTheme.light,
     darkTheme: RelayTheme.dark,
+    themeMode: ThemeMode.light,
     routerConfig: _router,
   );
 }

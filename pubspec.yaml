@@ -26,7 +26,8 @@ dependencies:
   flutter_webrtc: ^1.6.2+hotfix.3
   sip_ua: ^1.1.0
   flutter_dotenv: ^6.0.1
-  flex_color_scheme: ^8.4.0
+  flex_color_scheme: ^9.0.0
+  material_ui: ^1.5.0
 
 dev_dependencies:
   flutter_test:
