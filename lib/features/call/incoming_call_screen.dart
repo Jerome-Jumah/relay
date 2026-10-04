@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
@@ -31,10 +31,7 @@ class IncomingCallScreen extends StatelessWidget {
                     const SizedBox(height: RelaySpacing.sm + 4),
                     Text(
                       video ? 'Incoming video call' : 'Incoming call',
-                      style: TextStyle(
-                        color: colors.onSurfaceVariant,
-                        fontSize: 17,
-                      ),
+                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 17),
                     ),
                     const Spacer(flex: 3),
                     const SizedBox(height: RelaySpacing.xxl),
@@ -60,28 +57,15 @@ class IncomingCallScreen extends StatelessWidget {
                               ),
                               onPressed: () {
                                 HapticFeedback.mediumImpact();
-                                context.go(video ? '/video-call' : '/audio-call');
+                                context.go(video ? '/call?mode=video' : '/call?mode=audio');
                               },
                               child: Semantics(
-                                label: video
-                                    ? 'Answer video call'
-                                    : 'Answer call',
-                                child: Icon(
-                                  video
-                                      ? Icons.videocam_rounded
-                                      : Icons.call_rounded,
-                                  size: 30,
-                                ),
+                                label: video ? 'Answer video call' : 'Answer call',
+                                child: Icon(video ? Icons.videocam_rounded : Icons.call_rounded, size: 30),
                               ),
                             ),
                             const SizedBox(height: RelaySpacing.sm + 1),
-                            Text(
-                              'Answer',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
+                            Text('Answer', style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
                           ],
                         ),
                       ],
@@ -92,7 +76,7 @@ class IncomingCallScreen extends StatelessWidget {
                         child: TextButton(
                           onPressed: () {
                             HapticFeedback.mediumImpact();
-                            context.go('/audio-call');
+                            context.go('/call?mode=audio');
                           },
                           child: const Text('Answer without video'),
                         ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
@@ -13,10 +13,7 @@ class MockCodeEditor extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: RelaySpacing.md + 2,
-              vertical: RelaySpacing.sm + 6,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md + 2, vertical: RelaySpacing.sm + 6),
             decoration: BoxDecoration(
               border: Border(bottom: BorderSide(color: colors.outlineVariant)),
             ),
@@ -32,11 +29,7 @@ class MockCodeEditor extends StatelessWidget {
                     style: TextStyle(color: colors.onSurface, fontSize: 14),
                   ),
                 ),
-                Icon(
-                  Icons.close_rounded,
-                  color: colors.onSurfaceVariant,
-                  size: 18,
-                ),
+                Icon(Icons.close_rounded, color: colors.onSurfaceVariant, size: 18),
               ],
             ),
           ),
@@ -44,10 +37,7 @@ class MockCodeEditor extends StatelessWidget {
             padding: const EdgeInsets.all(RelaySpacing.md),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                'lib  ›  features  ›  call',
-                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
-              ),
+              child: Text('lib  ›  features  ›  call', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11)),
             ),
           ),
           Expanded(
@@ -74,11 +64,7 @@ class MockCodeEditor extends StatelessWidget {
                                 width: 28,
                                 child: Text(
                                   '${i + 1}',
-                                  style: TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 12,
-                                    color: colors.outline,
-                                  ),
+                                  style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: colors.outline),
                                 ),
                               ),
                               Text(
@@ -88,8 +74,7 @@ class MockCodeEditor extends StatelessWidget {
                                   fontSize: 12,
                                   color: _lines[i].startsWith('import')
                                       ? colors.secondary
-                                      : _lines[i].contains('class') ||
-                                            _lines[i].contains('@override')
+                                      : _lines[i].contains('class') || _lines[i].contains('@override')
                                       ? colors.primary
                                       : colors.tertiary,
                                 ),
@@ -108,25 +93,15 @@ class MockCodeEditor extends StatelessWidget {
             color: colors.surfaceContainer,
             child: Row(
               children: [
-                Icon(
-                  Icons.account_tree_outlined,
-                  size: 14,
-                  color: colors.onSurfaceVariant,
-                ),
+                Icon(Icons.account_tree_outlined, size: 14, color: colors.onSurfaceVariant),
                 const SizedBox(width: 6),
-                Text(
-                  'main',
-                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11),
-                ),
+                Text('main', style: TextStyle(color: colors.onSurfaceVariant, fontSize: 11)),
                 const Spacer(),
                 Flexible(
                   child: Text(
                     'Ln 24, Col 34    UTF-8    Dart',
                     textAlign: TextAlign.end,
-                    style: TextStyle(
-                      color: colors.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 10),
                   ),
                 ),
               ],
@@ -139,7 +114,7 @@ class MockCodeEditor extends StatelessWidget {
 }
 
 const _lines = [
-  "import 'package:flutter/material.dart';",
+  "import 'package:material_ui/material_ui.dart';",
   '',
   'class CallScreen extends StatelessWidget {',
   '  const CallScreen({super.key});',

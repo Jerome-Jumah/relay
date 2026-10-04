@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:relay/features/call/widgets/call_error_panel.dart';
@@ -12,10 +12,7 @@ class CallErrorScreen extends StatelessWidget {
     body: SafeArea(
       child: Center(
         child: SingleChildScrollView(
-          child: CallErrorPanel(
-            onRetry: () => context.go('/screen-sharing'),
-            onDismiss: () => context.go('/'),
-          ),
+          child: CallErrorPanel(onRetry: () => context.go('/call'), onDismiss: () => context.go('/')),
         ),
       ),
     ),

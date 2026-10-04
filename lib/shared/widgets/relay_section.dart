@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
@@ -15,10 +15,7 @@ class RelaySection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(
-            left: RelaySpacing.md,
-            bottom: RelaySpacing.sm + 2,
-          ),
+          padding: const EdgeInsets.only(left: RelaySpacing.md, bottom: RelaySpacing.sm + 2),
           child: Text(
             title.toUpperCase(),
             style: TextStyle(

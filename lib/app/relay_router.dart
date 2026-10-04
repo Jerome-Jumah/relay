@@ -1,11 +1,10 @@
 import 'package:go_router/go_router.dart';
-import 'package:relay/features/call/audio_call_screen.dart';
 import 'package:relay/features/call/call_ended_screen.dart';
 import 'package:relay/features/call/call_error_screen.dart';
+import 'package:relay/features/call/call_presentation.dart';
+import 'package:relay/features/call/call_screen.dart';
 import 'package:relay/features/call/call_ui_status.dart';
 import 'package:relay/features/call/incoming_call_screen.dart';
-import 'package:relay/features/call/screen_sharing_screen.dart';
-import 'package:relay/features/call/video_call_screen.dart';
 import 'package:relay/features/home/home_screen.dart';
 import 'package:relay/features/rtc_lab/rtc_lab_screen.dart';
 import 'package:relay/features/settings/settings_screen.dart';
@@ -18,9 +17,14 @@ GoRouter createRelayRouter({String initialLocation = '/'}) => GoRouter(
       builder: (context, state) => const HomeScreen(),
     ),
     GoRoute(
-      path: '/audio-call',
-      builder: (context, state) => AudioCallScreen(
+      path: '/call',
+      builder: (context, state) => CallScreen(
         peer: state.uri.queryParameters['peer'] ?? '1002',
+        initialPresentation: switch (state.uri.queryParameters['mode']) {
+          'video' => CallPresentation.video,
+          'screenShare' || 'screen-sharing' => CallPresentation.screenShare,
+          _ => CallPresentation.audio,
+        },
         status: switch (state.uri.queryParameters['state']) {
           'connecting' => CallUiStatus.connecting,
           'reconnecting' => CallUiStatus.reconnecting,
@@ -28,18 +32,8 @@ GoRouter createRelayRouter({String initialLocation = '/'}) => GoRouter(
         },
         muted: state.uri.queryParameters['muted'] == '1',
         speaker: state.uri.queryParameters['speaker'] == '1',
-      ),
-    ),
-    GoRoute(
-      path: '/video-call',
-      builder: (context, state) => VideoCallScreen(
-        peer: state.uri.queryParameters['peer'] ?? '1002',
         controlsVisible: state.uri.queryParameters['controls'] != '0',
       ),
-    ),
-    GoRoute(
-      path: '/screen-sharing',
-      builder: (context, state) => const ScreenSharingScreen(),
     ),
     GoRoute(
       path: '/settings',

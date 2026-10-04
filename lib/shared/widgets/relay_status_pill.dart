@@ -1,14 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
 class RelayStatusPill extends StatelessWidget {
-  const RelayStatusPill(
-    this.label, {
-    super.key,
-    this.color,
-    this.filled = false,
-  });
+  const RelayStatusPill(this.label, {super.key, this.color, this.filled = false});
 
   final String label;
   final Color? color;
@@ -20,10 +15,7 @@ class RelayStatusPill extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: filled ? 14 : 0,
-          vertical: RelaySpacing.sm,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: filled ? 14 : 0, vertical: RelaySpacing.sm),
         decoration: filled
             ? BoxDecoration(
                 color: dotColor.withValues(alpha: 0.12),
@@ -40,13 +32,7 @@ class RelayStatusPill extends StatelessWidget {
             ),
             const SizedBox(width: RelaySpacing.sm),
             Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
+              child: Text(label, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
           ],
         ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
@@ -23,11 +23,7 @@ class RelayErrorFallback extends StatelessWidget {
                 Text(
                   'Something went wrong',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: colors.onSurface,
-                    fontSize: 16,
-                    decoration: TextDecoration.none,
-                  ),
+                  style: TextStyle(color: colors.onSurface, fontSize: 16, decoration: TextDecoration.none),
                 ),
               ],
             ),

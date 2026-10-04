@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -20,7 +21,7 @@ void main() {
   );
 
   testWidgets('app boots at Home with Material 3', (tester) async {
-    await tester.pumpWidget(const RelayApp());
+    await tester.pumpWidget(const ProviderScope(child: RelayApp()));
     await tester.pumpAndSettle();
     expect(find.byType(HomeScreen), findsOneWidget);
     expect(find.text('Ready to\nconnect'), findsOneWidget);

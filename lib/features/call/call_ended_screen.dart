@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
@@ -40,16 +40,9 @@ class _CallEndedScreenState extends State<CallEndedScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.call_end_rounded,
-                color: colors.primary,
-                size: 44,
-              ),
+              Icon(Icons.call_end_rounded, color: colors.primary, size: 44),
               const SizedBox(height: RelaySpacing.lg + 4),
-              const Text(
-                'Call ended',
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500),
-              ),
+              const Text('Call ended', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w500)),
               const SizedBox(height: RelaySpacing.sm + 4),
               Text(
                 '04:38',
@@ -60,10 +53,7 @@ class _CallEndedScreenState extends State<CallEndedScreen> {
                 ),
               ),
               const SizedBox(height: RelaySpacing.xxl),
-              TextButton(
-                onPressed: () => context.go('/'),
-                child: const Text('Back to Home'),
-              ),
+              TextButton(onPressed: () => context.go('/'), child: const Text('Back to Home')),
             ],
           ),
         ),

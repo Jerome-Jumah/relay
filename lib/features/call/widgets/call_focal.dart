@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CallFocal extends StatelessWidget {
   const CallFocal({super.key, this.size = 210});
@@ -23,11 +23,7 @@ class CallFocal extends StatelessWidget {
             color: colors.surfaceContainerHigh,
             border: Border.all(color: colors.outline.withValues(alpha: 0.4)),
           ),
-          child: Icon(
-            Icons.person_rounded,
-            size: size * 0.37,
-            color: colors.primary,
-          ),
+          child: Icon(Icons.person_rounded, size: size * 0.37, color: colors.primary),
         ),
       ),
     );

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
@@ -9,8 +9,7 @@ class IcePath extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     return Semantics(
-      label:
-          'ICE path: Local, server reflexive selected, TURN, Peer. Direct connection.',
+      label: 'ICE path: Local, server reflexive selected, TURN, Peer. Direct connection.',
       child: ExcludeSemantics(
         child: Container(
           padding: const EdgeInsets.all(RelaySpacing.md + 2),
@@ -21,25 +20,14 @@ class IcePath extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'ICE path',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
+              const Text('ICE path', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               const SizedBox(height: RelaySpacing.md + 2),
               Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 6,
                 runSpacing: RelaySpacing.sm,
                 children: [
-                  for (final item in [
-                    'Local',
-                    '→',
-                    'srflx',
-                    '→',
-                    'TURN',
-                    '→',
-                    'Peer',
-                  ])
+                  for (final item in ['Local', '→', 'srflx', '→', 'TURN', '→', 'Peer'])
                     item == 'srflx'
                         ? Container(
                             padding: const EdgeInsets.symmetric(
@@ -52,35 +40,18 @@ class IcePath extends StatelessWidget {
                             ),
                             child: Text(
                               item,
-                              style: TextStyle(
-                                color: colors.primary,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
+                              style: TextStyle(color: colors.primary, fontWeight: FontWeight.w700, fontSize: 12),
                             ),
                           )
-                        : Text(
-                            item,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
+                        : Text(item, style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
                 ],
               ),
               const SizedBox(height: RelaySpacing.md),
               Row(
                 children: [
-                  Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 16,
-                    color: colors.tertiary,
-                  ),
+                  Icon(Icons.check_circle_outline_rounded, size: 16, color: colors.tertiary),
                   const SizedBox(width: 7),
-                  Text(
-                    'Direct connection',
-                    style: TextStyle(color: colors.tertiary, fontSize: 13),
-                  ),
+                  Text('Direct connection', style: TextStyle(color: colors.tertiary, fontSize: 13)),
                 ],
               ),
             ],

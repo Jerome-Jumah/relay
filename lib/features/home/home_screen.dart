@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/home/widgets/home_action_card.dart';
 import 'package:relay/shared/widgets/relay_status_pill.dart';
@@ -21,16 +21,15 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void start(String path) {
+  void start(String mode) {
     HapticFeedback.mediumImpact();
     FocusScope.of(context).unfocus();
     context.push(
       Uri(
-        path: path,
+        path: '/call',
         queryParameters: {
-          'peer': destination.text.trim().isEmpty
-              ? '1002'
-              : destination.text.trim(),
+          'peer': destination.text.trim().isEmpty ? '1002' : destination.text.trim(),
+          'mode': mode,
         },
       ).toString(),
     );
@@ -45,9 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (context, constraints) => SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: (constraints.maxHeight - 36).clamp(0, double.infinity),
-              ),
+              constraints: BoxConstraints(minHeight: (constraints.maxHeight - 36).clamp(0, double.infinity)),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 480),
@@ -56,21 +53,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Row(
                         children: [
-                          Image.asset(
-                            'assets/images/logo.png',
-                            width: 40,
-                            height: 40,
-                            semanticLabel: 'Relay mark',
-                          ),
+                          Image.asset('assets/images/logo.png', width: 40, height: 40, semanticLabel: 'Relay mark'),
                           const SizedBox(width: RelaySpacing.sm + 2),
                           const Expanded(
                             child: Text(
                               'Relay',
-                              style: TextStyle(
-                                fontSize: 27,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -1,
-                              ),
+                              style: TextStyle(fontSize: 27, fontWeight: FontWeight.w700, letterSpacing: -1),
                             ),
                           ),
                           IconButton.filledTonal(
@@ -79,10 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: const Icon(Icons.settings_outlined),
                             style: IconButton.styleFrom(
                               backgroundColor: colors.surfaceContainer,
-                              minimumSize: const Size(
-                                RelaySizes.minimumTouchTarget,
-                                RelaySizes.minimumTouchTarget,
-                              ),
+                              minimumSize: const Size(RelaySizes.minimumTouchTarget, RelaySizes.minimumTouchTarget),
                             ),
                           ),
                         ],
@@ -90,21 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       SizedBox(height: constraints.maxHeight < 700 ? 40 : 66),
                       const Text(
                         'Ready to\nconnect',
-                        style: TextStyle(
-                          fontSize: 46,
-                          height: 1.08,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -2,
-                        ),
+                        style: TextStyle(fontSize: 46, height: 1.08, fontWeight: FontWeight.w600, letterSpacing: -2),
                       ),
                       const SizedBox(height: RelaySpacing.md + 2),
                       Text(
-                        'Start an audio call, video call,\nor share your screen.',
-                        style: TextStyle(
-                          fontSize: 17,
-                          height: 1.5,
-                          color: colors.onSurfaceVariant,
-                        ),
+                        'Start an audio call or video call.',
+                        style: TextStyle(fontSize: 17, height: 1.5, color: colors.onSurfaceVariant),
                       ),
                       const SizedBox(height: RelaySpacing.xl - 2),
                       TextField(
@@ -124,9 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             onPressed: destination.clear,
                           ),
                           filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 22,
-                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 22),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(RelayRadius.lg - 4),
                             borderSide: BorderSide(color: colors.outlineVariant),
@@ -143,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.call_rounded,
                         background: colors.primary,
                         foreground: colors.onPrimary,
-                        onTap: () => start('/audio-call'),
+                        onTap: () => start('audio'),
                       ),
                       const SizedBox(height: RelaySpacing.sm + 4),
                       HomeActionCard(
@@ -151,16 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.videocam_rounded,
                         background: colors.primaryContainer,
                         foreground: colors.onPrimaryContainer,
-                        onTap: () => start('/video-call'),
-                      ),
-                      const SizedBox(height: RelaySpacing.md + 2),
-                      HomeActionCard(
-                        label: 'Share screen',
-                        icon: Icons.desktop_windows_outlined,
-                        background: Colors.transparent,
-                        foreground: colors.onSurface,
-                        outlined: true,
-                        onTap: () => start('/screen-sharing'),
+                        onTap: () => start('video'),
                       ),
                       const SizedBox(height: RelaySpacing.xxl),
                       const RelayStatusPill('SIP connected'),

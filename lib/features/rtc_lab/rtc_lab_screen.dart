@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,17 +34,12 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
   Future<void> copyDiagnostics() async {
     await Clipboard.setData(
       const ClipboardData(
-        text:
-            'Relay · mock diagnostics\nSIP: Registered · WSS · 1001\nWebRTC: Stable · ICE Connected · Peer Connected\nAudio: Opus · Video: VP8 · 1280 × 720\nPath: srflx · Direct · UDP · RTT 32 ms',
+        text: 'Relay · mock diagnostics\nSIP: Registered · WSS · 1001\nWebRTC: Stable · ICE Connected · Peer Connected\nAudio: Opus · Video: VP8 · 1280 × 720\nPath: srflx · Direct · UDP · RTT 32 ms',
       ),
     );
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Diagnostics copied'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Diagnostics copied'), behavior: SnackBarBehavior.floating));
     }
   }
 
@@ -53,10 +48,7 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
     final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'RTC Lab',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: const Text('RTC Lab', style: TextStyle(fontWeight: FontWeight.w600)),
         leading: IconButton(
           tooltip: 'Back',
           onPressed: () => context.canPop() ? context.pop() : context.go('/'),
@@ -75,10 +67,7 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
           children: [
             Text(
               "What's happening underneath the call",
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.onSurfaceVariant,
-              ),
+              style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant),
             ),
             const SizedBox(height: RelaySpacing.lg),
             Container(
@@ -89,11 +78,7 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(
-                    Icons.check_circle_outline_rounded,
-                    color: colors.tertiary,
-                    size: 30,
-                  ),
+                  Icon(Icons.check_circle_outline_rounded, color: colors.tertiary, size: 30),
                   const SizedBox(width: RelaySpacing.md - 2),
                   Expanded(
                     child: Column(
@@ -110,10 +95,7 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
                         const SizedBox(height: RelaySpacing.xs + 1),
                         Text(
                           'Everything looks good',
-                          style: TextStyle(
-                            color: colors.onTertiaryContainer,
-                            fontSize: 13,
-                          ),
+                          style: TextStyle(color: colors.onTertiaryContainer, fontSize: 13),
                         ),
                       ],
                     ),
@@ -124,39 +106,22 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
             const SizedBox(height: RelaySpacing.lg + 4),
             const DiagnosticSection(
               title: 'SIP',
-              values: {
-                'Registration': 'Registered',
-                'Transport': 'WSS',
-                'Extension': '1001',
-              },
+              values: {'Registration': 'Registered', 'Transport': 'WSS', 'Extension': '1001'},
             ),
             const DiagnosticSection(
               title: 'WebRTC',
-              values: {
-                'Signaling': 'Stable',
-                'ICE': 'Connected',
-                'Peer connection': 'Connected',
-              },
+              values: {'Signaling': 'Stable', 'ICE': 'Connected', 'Peer connection': 'Connected'},
             ),
             const DiagnosticSection(
               title: 'Media',
-              values: {
-                'Audio': 'Opus',
-                'Video': 'VP8',
-                'Resolution': '1280 × 720',
-                'Screen sharing': 'Off',
-              },
+              values: {'Audio': 'Opus', 'Video': 'VP8', 'Resolution': '1280 × 720', 'Screen sharing': 'Off'},
             ),
             const IcePath(),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
                 onPressed: () => setState(() => detailed = !detailed),
-                icon: Icon(
-                  detailed
-                      ? Icons.expand_less_rounded
-                      : Icons.expand_more_rounded,
-                ),
+                icon: Icon(detailed ? Icons.expand_less_rounded : Icons.expand_more_rounded),
                 label: Text(detailed ? 'Less detail' : 'Connection details'),
               ),
             ),
@@ -218,17 +183,10 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
             ),
             if (forceTurn || overlay || verbose)
               Padding(
-                padding: const EdgeInsets.only(
-                  left: RelaySpacing.sm + 4,
-                  bottom: RelaySpacing.lg,
-                ),
+                padding: const EdgeInsets.only(left: RelaySpacing.sm + 4, bottom: RelaySpacing.lg),
                 child: Text(
                   'Experiment switches are preview controls.\nThe mock connection values stay unchanged.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 1.5,
-                    color: colors.onSurfaceVariant,
-                  ),
+                  style: TextStyle(fontSize: 12, height: 1.5, color: colors.onSurfaceVariant),
                 ),
               ),
             RelaySection(
@@ -236,10 +194,7 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
               children: [
                 for (final entry in _events)
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: RelaySpacing.md + 2,
-                      vertical: RelaySpacing.sm + 4,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md + 2, vertical: RelaySpacing.sm + 4),
                     child: Row(
                       children: [
                         Text(
@@ -251,12 +206,7 @@ class _RtcLabScreenState extends State<RtcLabScreen> {
                           ),
                         ),
                         const SizedBox(width: RelaySpacing.md + 4),
-                        Expanded(
-                          child: Text(
-                            entry.$2,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
+                        Expanded(child: Text(entry.$2, style: const TextStyle(fontSize: 13))),
                       ],
                     ),
                   ),

@@ -1,13 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
 class MockVideoSurface extends StatelessWidget {
-  const MockVideoSurface({
-    super.key,
-    this.selfView = false,
-    this.cameraOff = false,
-  });
+  const MockVideoSurface({super.key, this.selfView = false, this.cameraOff = false});
 
   final bool selfView;
   final bool cameraOff;
@@ -30,30 +26,16 @@ class MockVideoSurface extends StatelessWidget {
           children: [
             if (!cameraOff)
               CustomPaint(
-                painter: _PortraitPlaceholder(
-                  selfView: selfView,
-                  colors: colors,
-                ),
+                painter: _PortraitPlaceholder(selfView: selfView, colors: colors),
               ),
-            if (cameraOff)
-              Center(
-                child: Icon(
-                  Icons.videocam_off_outlined,
-                  color: colors.onSurfaceVariant,
-                  size: 32,
-                ),
-              ),
+            if (cameraOff) Center(child: Icon(Icons.videocam_off_outlined, color: colors.onSurfaceVariant, size: 32)),
             if (!selfView)
               Positioned(
                 left: RelaySpacing.lg,
                 bottom: 160,
                 child: Text(
                   'Video preview',
-                  style: TextStyle(
-                    color: colors.onSurfaceVariant,
-                    fontSize: 12,
-                    letterSpacing: 0.6,
-                  ),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12, letterSpacing: 0.6),
                 ),
               ),
           ],
@@ -72,17 +54,10 @@ class _PortraitPlaceholder extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
-    paint.color = selfView
-        ? colors.surfaceContainerHighest
-        : colors.surfaceContainerLow;
-    canvas.drawRect(
-      Rect.fromLTWH(size.width * 0.06, 0, size.width * 0.18, size.height),
-      paint,
-    );
+    paint.color = selfView ? colors.surfaceContainerHighest : colors.surfaceContainerLow;
+    canvas.drawRect(Rect.fromLTWH(size.width * 0.06, 0, size.width * 0.18, size.height), paint);
 
-    paint.color = selfView
-        ? colors.surfaceContainerLowest
-        : colors.surfaceContainerHighest;
+    paint.color = selfView ? colors.surfaceContainerLowest : colors.surfaceContainerHighest;
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(size.width * 0.5, size.height * 0.94),
@@ -92,9 +67,7 @@ class _PortraitPlaceholder extends CustomPainter {
       paint,
     );
 
-    paint.color = selfView
-        ? colors.primaryContainer.withValues(alpha: 0.5)
-        : colors.outlineVariant;
+    paint.color = selfView ? colors.primaryContainer.withValues(alpha: 0.5) : colors.outlineVariant;
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(size.width * 0.5, size.height * 0.41),

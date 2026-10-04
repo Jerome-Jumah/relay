@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/relay_app.dart';
 import 'package:relay/shared/widgets/relay_error_fallback.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
@@ -15,7 +16,7 @@ Future<void> main() async {
     },
     appRunner: () {
       ErrorWidget.builder = (_) => const RelayErrorFallback();
-      runApp(const RelayApp());
+      runApp(const ProviderScope(child: RelayApp()));
     },
   );
 }

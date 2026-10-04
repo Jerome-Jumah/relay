@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 
 class HomeActionCard extends StatelessWidget {
@@ -25,12 +25,8 @@ class HomeActionCard extends StatelessWidget {
     return Material(
       color: background,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          outlined ? RelayRadius.lg : RelayRadius.full,
-        ),
-        side: outlined
-            ? BorderSide(color: colors.outlineVariant)
-            : BorderSide.none,
+        borderRadius: BorderRadius.circular(outlined ? RelayRadius.lg : RelayRadius.full),
+        side: outlined ? BorderSide(color: colors.outlineVariant) : BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -44,11 +40,7 @@ class HomeActionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: TextStyle(color: foreground, fontSize: 18, fontWeight: FontWeight.w500),
                 ),
               ),
               Icon(Icons.arrow_forward_rounded, size: 25, color: foreground),

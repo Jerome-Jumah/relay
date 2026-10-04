@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
@@ -14,6 +14,7 @@ class RelayCallControl extends StatefulWidget {
     this.size = RelaySizes.callControl,
     this.showLabel = true,
     this.isToggle = false,
+    this.semanticsLabel,
   });
 
   final IconData icon;
@@ -24,6 +25,7 @@ class RelayCallControl extends StatefulWidget {
   final double size;
   final bool showLabel;
   final bool isToggle;
+  final String? semanticsLabel;
 
   @override
   State<RelayCallControl> createState() => _RelayCallControlState();
@@ -44,6 +46,7 @@ class _RelayCallControlState extends State<RelayCallControl> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final effectiveLabel = widget.semanticsLabel ?? widget.label;
     final background = widget.destructive
         ? colors.error
         : widget.active
@@ -59,9 +62,11 @@ class _RelayCallControlState extends State<RelayCallControl> {
       button: true,
       toggled: widget.isToggle ? widget.active : null,
       onTap: handlePress,
-      label: widget.label,
-      child: ExcludeSemantics(
-        child: Column(
+      label: effectiveLabel,
+      child: Tooltip(
+        message: effectiveLabel,
+        child: ExcludeSemantics(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedScale(
@@ -74,9 +79,7 @@ class _RelayCallControlState extends State<RelayCallControl> {
                 decoration: BoxDecoration(
                   color: background,
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: colors.outlineVariant.withValues(alpha: 0.15),
-                  ),
+                  border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.15)),
                 ),
                 child: Material(
                   color: Colors.transparent,
@@ -84,31 +87,20 @@ class _RelayCallControlState extends State<RelayCallControl> {
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     customBorder: const CircleBorder(),
-                    onHighlightChanged: (value) =>
-                        setState(() => pressed = value),
+                    onHighlightChanged: (value) => setState(() => pressed = value),
                     onTap: handlePress,
-                    child: Icon(
-                      widget.icon,
-                      color: foreground,
-                      size: widget.size <= 50 ? 23 : 28,
-                    ),
+                    child: Icon(widget.icon, color: foreground, size: widget.size <= 50 ? 23 : 28),
                   ),
                 ),
               ),
             ),
             if (widget.showLabel) ...[
               const SizedBox(height: RelaySpacing.sm + 1),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: colors.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
+              Text(widget.label, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
             ],
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }

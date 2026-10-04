@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
 
@@ -27,10 +27,7 @@ class RelaySettingsTile extends StatelessWidget {
       children: [
         ListTile(
           minTileHeight: RelaySizes.callControl,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: RelaySpacing.md,
-            vertical: 2,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md, vertical: 2),
           leading: CircleAvatar(
             radius: 19,
             backgroundColor: colors.surfaceContainer,
@@ -43,17 +40,10 @@ class RelaySettingsTile extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (value != null) ...[
-                    Text(
-                      value!,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
+                    Text(value!, style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant)),
                     const SizedBox(width: RelaySpacing.sm),
                   ],
-                  if (onTap != null)
-                    const Icon(Icons.chevron_right_rounded, size: 20),
+                  if (onTap != null) const Icon(Icons.chevron_right_rounded, size: 20),
                 ],
               ),
           onTap: onTap,
