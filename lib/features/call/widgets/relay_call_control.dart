@@ -67,40 +67,41 @@ class _RelayCallControlState extends State<RelayCallControl> {
         message: effectiveLabel,
         child: ExcludeSemantics(
           child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedScale(
-              scale: pressed ? 0.94 : 1.0,
-              duration: RelayDuration.fast,
-              child: AnimatedContainer(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedScale(
+                scale: pressed ? 0.94 : 1.0,
                 duration: RelayDuration.fast,
-                width: widget.size,
-                height: widget.size,
-                decoration: BoxDecoration(
-                  color: background,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.15)),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onHighlightChanged: (value) => setState(() => pressed = value),
-                    onTap: handlePress,
-                    child: Icon(widget.icon, color: foreground, size: widget.size <= 50 ? 23 : 28),
+                child: AnimatedContainer(
+                  duration: RelayDuration.fast,
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    color: background,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.15)),
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onHighlightChanged: (value) => setState(() => pressed = value),
+                      onTap: handlePress,
+                      child: Icon(widget.icon, color: foreground, size: widget.size <= 50 ? 23 : 28),
+                    ),
                   ),
                 ),
               ),
-            ),
-            if (widget.showLabel) ...[
-              const SizedBox(height: RelaySpacing.sm + 1),
-              Text(widget.label, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              if (widget.showLabel) ...[
+                const SizedBox(height: RelaySpacing.sm + 1),
+                Text(widget.label, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
