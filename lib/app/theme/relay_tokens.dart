@@ -25,3 +25,8 @@ abstract final class RelayDuration {
   static const fast = Duration(milliseconds: 150);
   static const normal = Duration(milliseconds: 250);
 }
+
+abstract final class RelayMotion {
+  static const pressScale = 0.95;
+  static const destructivePressScale = 0.93;
+}

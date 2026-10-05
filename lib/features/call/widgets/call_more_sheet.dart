@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:relay/features/call/call_presentation.dart';
@@ -51,6 +52,7 @@ abstract final class CallMoreSheet {
                 leading: const Icon(Icons.stop_screen_share_outlined),
                 title: const Text('Stop sharing'),
                 onTap: () {
+                  HapticFeedback.mediumImpact();
                   Navigator.pop(sheetContext);
                   onStopScreenShare();
                 },

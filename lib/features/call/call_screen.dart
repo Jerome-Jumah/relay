@@ -1,13 +1,12 @@
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
 import 'package:relay/features/call/call_presentation.dart';
 import 'package:relay/features/call/call_ui_status.dart';
-import 'package:relay/features/call/widgets/audio_call_content.dart';
+import 'package:relay/features/call/widgets/active_call_stage.dart';
 import 'package:relay/features/call/widgets/call_layout.dart';
 import 'package:relay/features/call/widgets/call_more_sheet.dart';
-import 'package:relay/features/call/widgets/screen_share_content.dart';
-import 'package:relay/features/call/widgets/video_call_content.dart';
 
 class CallScreen extends StatefulWidget {
   const CallScreen({
@@ -60,7 +59,6 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _stopScreenShare() {
-    HapticFeedback.mediumImpact();
     setState(() {
       _presentation = _presentationBeforeSharing ?? CallPresentation.audio;
       _presentationBeforeSharing = null;
@@ -93,7 +91,6 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _endCall() {
-    HapticFeedback.heavyImpact();
     context.go('/call-ended');
   }
 
@@ -118,48 +115,29 @@ class _CallScreenState extends State<CallScreen> {
 
   @override
   Widget build(BuildContext context) => CallLayout(
-    edgeToEdge: _presentation == CallPresentation.video,
-    child: switch (_presentation) {
-      CallPresentation.audio => AudioCallContent(
-        peer: widget.peer,
-        status: widget.status,
-        timer: '04:38',
-        muted: muted,
-        speaker: speaker,
-        onToggleMute: () => setState(() => muted = !muted),
-        onToggleSpeaker: () => setState(() => speaker = !speaker),
-        onStartVideo: _switchToVideo,
-        onMore: _showMore,
-        onEndCall: _endCall,
-        onBack: _handleBack,
-      ),
-      CallPresentation.video => VideoCallContent(
-        peer: widget.peer,
-        timer: '04:38',
-        muted: muted,
-        camera: camera,
-        flipped: flipped,
-        controlsVisible: controlsVisible,
-        onToggleControls: () => setState(() => controlsVisible = !controlsVisible),
-        onToggleMute: () => setState(() => muted = !muted),
-        onToggleCamera: _toggleCamera,
-        onToggleFlip: () => setState(() => flipped = !flipped),
-        onStartScreenShare: _startScreenShare,
-        onMore: _showMore,
-        onEndCall: _endCall,
-        onBack: _handleBack,
-      ),
-      CallPresentation.screenShare => ScreenShareContent(
-        peer: widget.peer,
-        timer: '05:12',
-        muted: muted,
-        camera: camera,
-        onToggleMute: () => setState(() => muted = !muted),
-        onStopScreenShare: _stopScreenShare,
-        onMore: _showMore,
-        onEndCall: _endCall,
-        onBack: _handleBack,
-      ),
-    },
+    edgeToEdge: true,
+    child: ActiveCallStage(
+      presentation: _presentation,
+      presentationBeforeSharing: _presentationBeforeSharing,
+      peer: widget.peer,
+      status: widget.status,
+      timer: '04:38',
+      muted: muted,
+      speaker: speaker,
+      camera: camera,
+      flipped: flipped,
+      controlsVisible: controlsVisible,
+      onToggleControls: () => setState(() => controlsVisible = !controlsVisible),
+      onToggleMute: () => setState(() => muted = !muted),
+      onToggleSpeaker: () => setState(() => speaker = !speaker),
+      onToggleCamera: _toggleCamera,
+      onToggleFlip: () => setState(() => flipped = !flipped),
+      onStartVideo: _switchToVideo,
+      onStartScreenShare: _startScreenShare,
+      onStopScreenShare: _stopScreenShare,
+      onMore: _showMore,
+      onEndCall: _endCall,
+      onBack: _handleBack,
+    ),
   );
 }
