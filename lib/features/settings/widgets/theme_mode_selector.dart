@@ -1,3 +1,4 @@
+import 'package:cue/cue.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -19,6 +20,7 @@ class ThemeModeSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = Theme.of(context).colorScheme;
     final currentMode = ref.watch(themeModeProvider);
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
     final options = const [
       (ThemeMode.system, 'System', 'Matches system settings', Icons.brightness_auto_outlined),
@@ -60,25 +62,49 @@ class ThemeModeSelector extends ConsumerWidget {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(RelayRadius.md),
                 ),
-                leading: Icon(icon, color: colors.onSurfaceVariant),
+                selected: currentMode == mode,
+                selectedTileColor: colors.primaryContainer.withValues(alpha: 0.35),
+                leading: Icon(
+                  icon,
+                  color: currentMode == mode ? colors.primary : colors.onSurfaceVariant,
+                ),
                 title: Text(
                   title,
                   style: TextStyle(
                     fontWeight: currentMode == mode ? FontWeight.w600 : FontWeight.w400,
-                    color: colors.onSurface,
+                    color: currentMode == mode ? colors.primary : colors.onSurface,
                   ),
                 ),
                 subtitle: Text(
                   subtitle,
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
-                trailing: currentMode == mode
-                    ? Icon(Icons.check_rounded, color: colors.primary)
-                    : null,
-                onTap: () {
+                trailing: SizedBox.square(
+                  dimension: 24,
+                  child: currentMode == mode
+                      ? (reducedMotion
+                          ? Icon(Icons.check_rounded, color: colors.primary)
+                          : Cue.onMount(
+                              motion: .snappy(),
+                              acts: [
+                                .fadeIn(),
+                                .scale(from: 0.8),
+                              ],
+                              child: Icon(Icons.check_rounded, color: colors.primary),
+                            ))
+                      : null,
+                ),
+                onTap: () async {
                   HapticFeedback.lightImpact();
-                  ref.read(themeModeProvider.notifier).setThemeMode(mode);
-                  Navigator.pop(context);
+                  if (currentMode != mode) {
+                    ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                    if (!reducedMotion) {
+                      await Future<void>.delayed(const Duration(milliseconds: 140));
+                    }
+                  }
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
                 },
               ),
             ),

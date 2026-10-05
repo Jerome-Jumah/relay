@@ -94,10 +94,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           labelText: 'Destination',
                           floatingLabelBehavior: FloatingLabelBehavior.never,
                           prefixIcon: const Icon(Icons.tag_rounded),
-                          suffixIcon: IconButton(
-                            tooltip: 'Clear destination',
-                            icon: const Icon(Icons.close_rounded),
-                            onPressed: destination.clear,
+                          suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: destination,
+                            builder: (context, value, _) {
+                              final reducedMotion = MediaQuery.disableAnimationsOf(context);
+                              return AnimatedSwitcher(
+                                duration: reducedMotion ? Duration.zero : RelayDuration.fast,
+                                child: value.text.isNotEmpty
+                                    ? IconButton(
+                                        key: const ValueKey('clear_destination'),
+                                        tooltip: 'Clear destination',
+                                        icon: const Icon(Icons.close_rounded),
+                                        onPressed: destination.clear,
+                                      )
+                                    : const SizedBox.shrink(key: ValueKey('empty_destination')),
+                              );
+                            },
                           ),
                           filled: false,
                           contentPadding: const EdgeInsets.symmetric(vertical: 22),

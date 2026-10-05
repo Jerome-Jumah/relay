@@ -1,7 +1,5 @@
 import 'package:cue/cue.dart';
 import 'package:material_ui/material_ui.dart';
-
-import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/call/call_presentation.dart';
 import 'package:relay/features/call/widgets/audio_call_controls.dart';
 import 'package:relay/features/call/widgets/screen_share_call_controls.dart';
@@ -50,9 +48,7 @@ class CallControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSharing = presentation == CallPresentation.screenShare;
-    final basePresentation = isSharing
-        ? (presentationBeforeSharing ?? CallPresentation.audio)
-        : presentation;
+    final basePresentation = isSharing ? (presentationBeforeSharing ?? CallPresentation.audio) : presentation;
     final isVideo = basePresentation == CallPresentation.video;
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
@@ -60,10 +56,7 @@ class CallControls extends StatelessWidget {
       alignment: Alignment.bottomCenter,
       children: [
         Actor(
-          acts: [
-            .fadeOut(),
-            if (!reducedMotion) .scale(to: 0.95),
-          ],
+          acts: [.fadeOut(), if (!reducedMotion) .scale(to: 0.95)],
           child: IgnorePointer(
             ignoring: isSharing,
             child: isVideo
@@ -92,10 +85,7 @@ class CallControls extends StatelessWidget {
           ),
         ),
         Actor(
-          acts: [
-            .fadeIn(),
-            if (!reducedMotion) .scale(from: 0.95),
-          ],
+          acts: [.fadeIn(), if (!reducedMotion) .scale(from: 0.95)],
           child: IgnorePointer(
             ignoring: !isSharing,
             child: ScreenShareCallControls(
