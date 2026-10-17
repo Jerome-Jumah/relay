@@ -1,19 +1,35 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
+import 'package:relay/features/call/models/call_state_data.dart';
+import 'package:relay/features/call/providers/call_controller.dart';
 import 'package:relay/features/call/widgets/call_focal.dart';
 import 'package:relay/features/call/widgets/call_layout.dart';
 import 'package:relay/features/call/widgets/relay_call_control.dart';
 
-class IncomingCallScreen extends StatelessWidget {
+class IncomingCallScreen extends ConsumerWidget {
   const IncomingCallScreen({super.key, this.video = false});
 
   final bool video;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<CallStateData>(callControllerProvider, (previous, next) {
+      if (next.session.isEnded) {
+        if (context.mounted) {
+          context.go('/call-ended');
+        }
+      }
+    });
+
     final colors = Theme.of(context).colorScheme;
+    final callState = ref.watch(callControllerProvider);
+    final peer = callState.session.peer.isNotEmpty
+        ? callState.session.peer
+        : 'Unknown';
+
     return CallLayout(
       child: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
@@ -27,11 +43,14 @@ class IncomingCallScreen extends StatelessWidget {
                     const Spacer(flex: 2),
                     const CallFocal(),
                     const SizedBox(height: RelaySpacing.lg + 4),
-                    const Text('1002', style: TextStyle(fontSize: 38)),
+                    Text(peer, style: const TextStyle(fontSize: 38)),
                     const SizedBox(height: RelaySpacing.sm + 4),
                     Text(
                       video ? 'Incoming video call' : 'Incoming call',
-                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 17),
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 17,
+                      ),
                     ),
                     const Spacer(flex: 3),
                     const SizedBox(height: RelaySpacing.xxl),
@@ -43,7 +62,15 @@ class IncomingCallScreen extends StatelessWidget {
                           label: 'Decline',
                           destructive: true,
                           size: 72,
-                          onPressed: () => context.go('/call-ended'),
+                          onPressed: () async {
+                            HapticFeedback.mediumImpact();
+                            await ref
+                                .read(callControllerProvider.notifier)
+                                .declineCall();
+                            if (context.mounted) {
+                              context.go('/call-ended');
+                            }
+                          },
                         ),
                         Column(
                           mainAxisSize: MainAxisSize.min,
@@ -55,17 +82,38 @@ class IncomingCallScreen extends StatelessWidget {
                                 foregroundColor: colors.onPrimary,
                                 minimumSize: const Size(72, 72),
                               ),
-                              onPressed: () {
+                              onPressed: () async {
                                 HapticFeedback.mediumImpact();
-                                context.go(video ? '/call?mode=video' : '/call?mode=audio');
+                                final success = await ref
+                                    .read(callControllerProvider.notifier)
+                                    .answerCall();
+                                if (success && context.mounted) {
+                                  context.go(
+                                    video
+                                        ? '/call?mode=video'
+                                        : '/call?mode=audio',
+                                  );
+                                }
                               },
                               child: Semantics(
-                                label: video ? 'Answer video call' : 'Answer call',
-                                child: Icon(video ? Icons.videocam_rounded : Icons.call_rounded, size: 30),
+                                label:
+                                    video ? 'Answer video call' : 'Answer call',
+                                child: Icon(
+                                  video
+                                      ? Icons.videocam_rounded
+                                      : Icons.call_rounded,
+                                  size: 30,
+                                ),
                               ),
                             ),
                             const SizedBox(height: RelaySpacing.sm + 1),
-                            Text('Answer', style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
+                            Text(
+                              'Answer',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colors.onSurfaceVariant,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -74,9 +122,14 @@ class IncomingCallScreen extends StatelessWidget {
                       Padding(
                         padding: const EdgeInsets.only(top: RelaySpacing.lg),
                         child: TextButton(
-                          onPressed: () {
+                          onPressed: () async {
                             HapticFeedback.mediumImpact();
-                            context.go('/call?mode=audio');
+                            final success = await ref
+                                .read(callControllerProvider.notifier)
+                                .answerCall();
+                            if (success && context.mounted) {
+                              context.go('/call?mode=audio');
+                            }
                           },
                           child: const Text('Answer without video'),
                         ),

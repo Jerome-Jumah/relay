@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
+import 'package:relay/features/call/providers/call_controller.dart';
 import 'package:relay/features/home/widgets/home_action_card.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
 import 'package:relay/features/sip/sip_controller.dart';
@@ -16,7 +17,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  final destination = TextEditingController(text: '1002');
+  final destination = TextEditingController();
 
   @override
   void dispose() {
@@ -27,13 +28,32 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void start(String mode) {
     HapticFeedback.mediumImpact();
     FocusScope.of(context).unfocus();
+
+    final peer = destination.text.trim();
+    if (peer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a destination extension before calling.')),
+      );
+      return;
+    }
+
+    if (mode == 'audio') {
+      final isRegistered = ref.read(sipControllerProvider).isRegistered;
+      if (!isRegistered) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please register your SIP account in Settings before calling.')));
+        return;
+      }
+      ref.read(callControllerProvider.notifier).startAudioCall(peer);
+      context.push(Uri(path: '/call', queryParameters: {'mode': 'audio'}).toString());
+      return;
+    }
+
     context.push(
       Uri(
         path: '/call',
-        queryParameters: {
-          'peer': destination.text.trim().isEmpty ? '1002' : destination.text.trim(),
-          'mode': mode,
-        },
+        queryParameters: {'mode': mode},
       ).toString(),
     );
   }
@@ -46,8 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       SipRegistrationStatus.registered => colors.tertiary,
       SipRegistrationStatus.connecting => colors.primary,
       SipRegistrationStatus.failed => colors.error,
-      SipRegistrationStatus.idle ||
-      SipRegistrationStatus.disconnected => colors.outline,
+      SipRegistrationStatus.idle || SipRegistrationStatus.disconnected => colors.outline,
     };
 
     return Scaffold(
@@ -104,6 +123,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         decoration: InputDecoration(
                           counterText: '',
                           labelText: 'Destination',
+                          hintText: 'e.g. 1002',
                           floatingLabelBehavior: FloatingLabelBehavior.never,
                           prefixIcon: const Icon(Icons.tag_rounded),
                           suffixIcon: ValueListenableBuilder<TextEditingValue>(
@@ -152,10 +172,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         onTap: () => start('video'),
                       ),
                       const SizedBox(height: RelaySpacing.xxl),
-                      RelayStatusPill(
-                        registrationState.homeStatusLabel,
-                        color: statusColor,
-                      ),
+                      RelayStatusPill(registrationState.homeStatusLabel, color: statusColor),
                       const SizedBox(height: RelaySpacing.sm),
                     ],
                   ),

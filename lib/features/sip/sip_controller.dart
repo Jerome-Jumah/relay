@@ -10,6 +10,7 @@ class SipController extends Notifier<SipRegistrationState> {
   SipAccountConfig _currentConfig = const SipAccountConfig();
 
   SipAccountConfig get currentConfig => _currentConfig;
+  RelaySipAdapter get adapter => _adapter;
 
   @override
   SipRegistrationState build() {
@@ -17,11 +18,7 @@ class SipController extends Notifier<SipRegistrationState> {
     _adapter = RelaySipAdapter();
 
     _adapter.onStatusChanged = (status, {errorMessage}) {
-      state = state.copyWith(
-        status: status,
-        extension: _currentConfig.extension,
-        errorMessage: errorMessage,
-      );
+      state = state.copyWith(status: status, extension: _currentConfig.extension, errorMessage: errorMessage);
     };
 
     ref.onDispose(() {
@@ -37,17 +34,11 @@ class SipController extends Notifier<SipRegistrationState> {
     try {
       _currentConfig = await _storage.loadConfig();
       if (_currentConfig.isConfigured) {
-        state = state.copyWith(
-          status: SipRegistrationStatus.connecting,
-          extension: _currentConfig.extension,
-        );
+        state = state.copyWith(status: SipRegistrationStatus.connecting, extension: _currentConfig.extension);
         await _adapter.register(_currentConfig);
       }
     } catch (_) {
-      state = state.copyWith(
-        status: SipRegistrationStatus.failed,
-        errorMessage: 'Failed to load configuration',
-      );
+      state = state.copyWith(status: SipRegistrationStatus.failed, errorMessage: 'Failed to load configuration');
     }
   }
 
@@ -60,18 +51,12 @@ class SipController extends Notifier<SipRegistrationState> {
     _currentConfig = config;
     await _storage.saveConfig(config);
 
-    state = SipRegistrationState(
-      status: SipRegistrationStatus.connecting,
-      extension: config.extension,
-    );
+    state = SipRegistrationState(status: SipRegistrationStatus.connecting, extension: config.extension);
 
     try {
       await _adapter.register(config);
     } catch (_) {
-      state = state.copyWith(
-        status: SipRegistrationStatus.failed,
-        errorMessage: 'Failed to initiate registration',
-      );
+      state = state.copyWith(status: SipRegistrationStatus.failed, errorMessage: 'Failed to initiate registration');
     }
   }
 
@@ -81,5 +66,6 @@ class SipController extends Notifier<SipRegistrationState> {
   }
 }
 
-final sipControllerProvider =
-    NotifierProvider<SipController, SipRegistrationState>(SipController.new);
+final sipControllerProvider = NotifierProvider<SipController, SipRegistrationState>(SipController.new);
+
+final sipAdapterProvider = Provider<RelaySipAdapter>((ref) => ref.watch(sipControllerProvider.notifier).adapter);

@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
@@ -30,27 +29,18 @@ class AudioCallContent extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Spacer(flex: 2),
-          CallFocal(
-            size: constraints.maxHeight < 550 ? 150 : 200,
-            status: status,
-            muted: muted,
-          ),
+          CallFocal(size: constraints.maxHeight < 550 ? 150 : 200, status: status, muted: muted),
           const SizedBox(height: RelaySpacing.lg + 2),
           Text(
             peer,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w400,
-              letterSpacing: -1,
-              color: colors.onSurface,
-            ),
+            style: TextStyle(fontSize: 36, fontWeight: FontWeight.w400, letterSpacing: -1, color: colors.onSurface),
           ),
           const SizedBox(height: RelaySpacing.sm + 2),
           Text(
-            status == CallUiStatus.connecting ? '00:00' : timer,
+            status == CallUiStatus.connected ? timer : '00:00',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w500,
@@ -70,7 +60,7 @@ class AudioCallContent extends StatelessWidget {
                     status.label,
                     color: switch (status) {
                       CallUiStatus.connected => colors.tertiary,
-                      CallUiStatus.connecting => colors.primary,
+                      CallUiStatus.calling || CallUiStatus.ringing || CallUiStatus.connecting => colors.primary,
                       CallUiStatus.reconnecting => colors.secondary,
                     },
                   ),

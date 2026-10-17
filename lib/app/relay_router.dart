@@ -20,7 +20,7 @@ GoRouter createRelayRouter({String initialLocation = '/'}) => GoRouter(
     GoRoute(
       path: '/call',
       builder: (context, state) => CallScreen(
-        peer: state.uri.queryParameters['peer'] ?? '1002',
+        peer: state.uri.queryParameters['peer'],
         initialPresentation: switch (state.uri.queryParameters['mode']) {
           'video' => CallPresentation.video,
           'screenShare' || 'screen-sharing' => CallPresentation.screenShare,

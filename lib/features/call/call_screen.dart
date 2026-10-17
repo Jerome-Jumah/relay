@@ -1,17 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
-
 import 'package:relay/features/call/call_presentation.dart';
 import 'package:relay/features/call/call_ui_status.dart';
+import 'package:relay/features/call/models/call_state_data.dart';
+import 'package:relay/features/call/providers/call_controller.dart';
 import 'package:relay/features/call/widgets/active_call_stage.dart';
 import 'package:relay/features/call/widgets/call_layout.dart';
 import 'package:relay/features/call/widgets/call_more_sheet.dart';
 
-class CallScreen extends StatefulWidget {
+class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({
     super.key,
-    this.peer = '1002',
+    this.peer,
     this.initialPresentation = CallPresentation.audio,
     this.status = CallUiStatus.connected,
     this.muted = false,
@@ -19,7 +23,7 @@ class CallScreen extends StatefulWidget {
     this.controlsVisible = true,
   });
 
-  final String peer;
+  final String? peer;
   final CallPresentation initialPresentation;
   final CallUiStatus status;
   final bool muted;
@@ -27,27 +31,30 @@ class CallScreen extends StatefulWidget {
   final bool controlsVisible;
 
   @override
-  State<CallScreen> createState() => _CallScreenState();
+  ConsumerState<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends State<CallScreen> {
+class _CallScreenState extends ConsumerState<CallScreen> {
   late CallPresentation _presentation = widget.initialPresentation;
   CallPresentation? _presentationBeforeSharing;
 
-  late bool muted = widget.muted;
-  late bool speaker = widget.speaker;
   bool camera = true;
   bool flipped = false;
   late bool controlsVisible = widget.controlsVisible;
+  Timer? _ticker;
 
   @override
-  void didUpdateWidget(CallScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.muted != widget.muted) muted = widget.muted;
-    if (oldWidget.speaker != widget.speaker) speaker = widget.speaker;
-    if (oldWidget.controlsVisible != widget.controlsVisible) {
-      controlsVisible = widget.controlsVisible;
-    }
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   void _startScreenShare() {
@@ -90,8 +97,11 @@ class _CallScreenState extends State<CallScreen> {
     });
   }
 
-  void _endCall() {
-    context.go('/call-ended');
+  Future<void> _endCall() async {
+    await ref.read(callControllerProvider.notifier).hangup();
+    if (mounted) {
+      context.go('/call-ended');
+    }
   }
 
   void _showMore() {
@@ -106,38 +116,61 @@ class _CallScreenState extends State<CallScreen> {
   }
 
   void _handleBack() {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
+    if (context.canPop()) {
+      context.pop();
     } else {
       context.go('/');
     }
   }
 
   @override
-  Widget build(BuildContext context) => CallLayout(
-    edgeToEdge: true,
-    child: ActiveCallStage(
-      presentation: _presentation,
-      presentationBeforeSharing: _presentationBeforeSharing,
-      peer: widget.peer,
-      status: widget.status,
-      timer: '04:38',
-      muted: muted,
-      speaker: speaker,
-      camera: camera,
-      flipped: flipped,
-      controlsVisible: controlsVisible,
-      onToggleControls: () => setState(() => controlsVisible = !controlsVisible),
-      onToggleMute: () => setState(() => muted = !muted),
-      onToggleSpeaker: () => setState(() => speaker = !speaker),
-      onToggleCamera: _toggleCamera,
-      onToggleFlip: () => setState(() => flipped = !flipped),
-      onStartVideo: _switchToVideo,
-      onStartScreenShare: _startScreenShare,
-      onStopScreenShare: _stopScreenShare,
-      onMore: _showMore,
-      onEndCall: _endCall,
-      onBack: _handleBack,
-    ),
-  );
+  Widget build(BuildContext context) {
+    ref.listen<CallStateData>(callControllerProvider, (previous, next) {
+      if (next.session.isEnded) {
+        if (mounted) {
+          context.go('/call-ended');
+        }
+      }
+    });
+
+    final callState = ref.watch(callControllerProvider);
+    final sessionPeer = callState.session.peer.trim();
+    final widgetPeer = widget.peer?.trim() ?? '';
+    final peer = sessionPeer.isNotEmpty
+        ? sessionPeer
+        : (widgetPeer.isNotEmpty ? widgetPeer : 'Unknown');
+    final status = callState.session.isActive
+        ? CallUiStatus.connected
+        : (callState.session.isConnecting ? callState.session.uiStatus : widget.status);
+    final timer = callState.session.formattedDuration;
+    final muted = callState.isMuted;
+    final speaker = callState.isSpeaker;
+
+    return CallLayout(
+      edgeToEdge: true,
+      child: ActiveCallStage(
+        presentation: _presentation,
+        presentationBeforeSharing: _presentationBeforeSharing,
+        peer: peer,
+        status: status,
+        timer: timer,
+        muted: muted,
+        speaker: speaker,
+        camera: camera,
+        flipped: flipped,
+        controlsVisible: controlsVisible,
+        onToggleControls: () => setState(() => controlsVisible = !controlsVisible),
+        onToggleMute: () => ref.read(callControllerProvider.notifier).toggleMute(),
+        onToggleSpeaker: () => ref.read(callControllerProvider.notifier).toggleSpeaker(),
+        onToggleCamera: _toggleCamera,
+        onToggleFlip: () => setState(() => flipped = !flipped),
+        onStartVideo: _switchToVideo,
+        onStartScreenShare: _startScreenShare,
+        onStopScreenShare: _stopScreenShare,
+        onMore: _showMore,
+        onEndCall: _endCall,
+        onBack: _handleBack,
+      ),
+    );
+  }
 }
