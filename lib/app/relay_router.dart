@@ -8,6 +8,7 @@ import 'package:relay/features/call/incoming_call_screen.dart';
 import 'package:relay/features/home/home_screen.dart';
 import 'package:relay/features/rtc_lab/rtc_lab_screen.dart';
 import 'package:relay/features/settings/settings_screen.dart';
+import 'package:relay/features/settings/sip_account_screen.dart';
 
 GoRouter createRelayRouter({String initialLocation = '/'}) => GoRouter(
   initialLocation: initialLocation,
@@ -38,6 +39,10 @@ GoRouter createRelayRouter({String initialLocation = '/'}) => GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/sip-account',
+      builder: (context, state) => const SipAccountScreen(),
     ),
     GoRoute(
       path: '/rtc-lab',

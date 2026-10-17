@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/settings/providers/theme_mode_provider.dart';
 import 'package:relay/features/settings/widgets/theme_mode_selector.dart';
+import 'package:relay/features/sip/sip_controller.dart';
 import 'package:relay/shared/widgets/relay_section.dart';
 import 'package:relay/shared/widgets/relay_settings_tile.dart';
 
@@ -70,6 +71,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final sipState = ref.watch(sipControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -171,10 +173,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 RelaySettingsTile(
                   icon: Icons.person_outline_rounded,
                   title: 'SIP account',
-                  onTap: () => information(
-                    'SIP account',
-                    'Extension 1001\nRegistration: Registered\nTransport: WSS\n\nPreview connection values only.',
-                  ),
+                  value: sipState.displayLabel,
+                  onTap: () => context.push('/settings/sip-account'),
                 ),
                 RelaySettingsTile(
                   icon: Icons.dns_outlined,

@@ -1,18 +1,21 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/home/widgets/home_action_card.dart';
+import 'package:relay/features/sip/models/sip_registration_state.dart';
+import 'package:relay/features/sip/sip_controller.dart';
 import 'package:relay/shared/widgets/relay_status_pill.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   final destination = TextEditingController(text: '1002');
 
   @override
@@ -38,6 +41,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final registrationState = ref.watch(sipControllerProvider);
+    final statusColor = switch (registrationState.status) {
+      SipRegistrationStatus.registered => colors.tertiary,
+      SipRegistrationStatus.connecting => colors.primary,
+      SipRegistrationStatus.failed => colors.error,
+      SipRegistrationStatus.idle ||
+      SipRegistrationStatus.disconnected => colors.outline,
+    };
+
     return Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
@@ -140,7 +152,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () => start('video'),
                       ),
                       const SizedBox(height: RelaySpacing.xxl),
-                      const RelayStatusPill('SIP connected'),
+                      RelayStatusPill(
+                        registrationState.homeStatusLabel,
+                        color: statusColor,
+                      ),
                       const SizedBox(height: RelaySpacing.sm),
                     ],
                   ),
