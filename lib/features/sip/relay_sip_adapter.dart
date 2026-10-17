@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -17,11 +18,15 @@ class RelaySipAdapter implements SipUaHelperListener {
 
   void Function(SipRegistrationStatus status, {String? errorMessage})? onStatusChanged;
 
-  void Function(CallSession session)? onCallSessionChanged;
+  void Function(CallSession session, {bool hasVideo})? onCallSessionChanged;
   void Function(MediaStream remoteStream)? onRemoteStreamAdded;
 
   Call? _activeCall;
   DateTime? _answeredAt;
+  Timer? _videoDiagnosticsTimer;
+  int? _hookedPeerConnectionHash;
+  bool _selectedCandidatePairLogged = false;
+  String? _lastRemoteStreamTracksSignature;
 
   Call? get activeCall => _activeCall;
   bool get isRegistered => _helper.registered;
@@ -44,16 +49,8 @@ class RelaySipAdapter implements SipUaHelperListener {
     return [
       {'urls': stunUrl},
       if (turnUsername.isNotEmpty && turnPassword.isNotEmpty) ...[
-        {
-          'urls': udpTurnUrl,
-          'username': turnUsername,
-          'credential': turnPassword,
-        },
-        {
-          'urls': tcpTurnUrl,
-          'username': turnUsername,
-          'credential': turnPassword,
-        },
+        {'urls': udpTurnUrl, 'username': turnUsername, 'credential': turnPassword},
+        {'urls': tcpTurnUrl, 'username': turnUsername, 'credential': turnPassword},
       ],
     ];
   }
@@ -77,7 +74,9 @@ class RelaySipAdapter implements SipUaHelperListener {
     final iceServers = buildIceServers();
     uaSettings.iceServers = iceServers;
     final hasTurn = dotenv.env['TURN_USERNAME']?.trim().isNotEmpty == true;
-    _log('Configured ${iceServers.length} ICE server(s): ${iceServers.map((s) => s['urls']).join(', ')} (TURN credentials: ${hasTurn ? 'present' : 'none'})');
+    _log(
+      'Configured ${iceServers.length} ICE server(s): ${iceServers.map((s) => s['urls']).join(', ')} (TURN credentials: ${hasTurn ? 'present' : 'none'})',
+    );
 
     await _helper.start(uaSettings);
   }
@@ -102,15 +101,33 @@ class RelaySipAdapter implements SipUaHelperListener {
       return false;
     }
     _answeredAt = null;
+    _resetDiagnostics();
     final iceServers = buildIceServers();
     return _helper.call(
       targetUri,
       voiceOnly: true,
       mediaStream: mediaStream,
       customOptions: {
-        'pcConfig': {
-          'iceServers': iceServers,
-        },
+        'pcConfig': {'iceServers': iceServers},
+      },
+    );
+  }
+
+  Future<bool> makeVideoCall(String targetUri, {MediaStream? mediaStream}) async {
+    _log('Initiating video call to $targetUri');
+    if (!_helper.connected) {
+      _log('Cannot make call: SIP UA not connected');
+      return false;
+    }
+    _answeredAt = null;
+    _resetDiagnostics();
+    final iceServers = buildIceServers();
+    return _helper.call(
+      targetUri,
+      voiceOnly: false,
+      mediaStream: mediaStream,
+      customOptions: {
+        'pcConfig': {'iceServers': iceServers},
       },
     );
   }
@@ -120,7 +137,7 @@ class RelaySipAdapter implements SipUaHelperListener {
       _log('Cannot answer: no active incoming call');
       return;
     }
-    _log('Answering incoming call ${_activeCall!.id}');
+    _log('Answering incoming audio call ${_activeCall!.id}');
     final options = _helper.buildCallOptions(true);
     final pcConfig = options['pcConfig'] as Map<String, dynamic>? ?? <String, dynamic>{};
     pcConfig['iceServers'] = buildIceServers();
@@ -128,30 +145,50 @@ class RelaySipAdapter implements SipUaHelperListener {
     _activeCall!.answer(options, mediaStream: mediaStream);
   }
 
+  Future<void> answerVideoCall({MediaStream? mediaStream}) async {
+    if (_activeCall == null) {
+      _log('Cannot answer: no active incoming call');
+      return;
+    }
+    _log('Answering incoming video call ${_activeCall!.id}');
+    final options = _helper.buildCallOptions(false);
+    final pcConfig = options['pcConfig'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    pcConfig['iceServers'] = buildIceServers();
+    options['pcConfig'] = pcConfig;
+    _activeCall!.answer(options, mediaStream: mediaStream);
+  }
+
   Future<void> hangupCall() async {
+    _stopVideoDiagnostics();
     if (_activeCall != null) {
-      _log('Hanging up call ${_activeCall!.id}');
+      final callToHangup = _activeCall!;
+      _log('Hanging up call ${callToHangup.id}');
       try {
-        _activeCall!.hangup();
+        callToHangup.hangup();
       } catch (e) {
         _log('Safe error on hangup: $e');
+        _resetDiagnostics();
+        _activeCall = null;
       }
-      _activeCall = null;
     }
   }
 
-  void mute({bool audio = true}) {
+  void mute({bool audio = false, bool video = false}) {
     if (_activeCall != null) {
-      _log('Call mute audio set to: $audio');
-      if (audio) {
-        _activeCall!.mute(true, false);
-      } else {
-        _activeCall!.unmute(true, false);
-      }
+      _log('Call mute set to: audio=$audio, video=$video');
+      _activeCall!.mute(audio, video);
+    }
+  }
+
+  void unmute({bool audio = false, bool video = false}) {
+    if (_activeCall != null) {
+      _log('Call unmute set to: audio=$audio, video=$video');
+      _activeCall!.unmute(audio, video);
     }
   }
 
   void dispose() {
+    _resetDiagnostics();
     _helper.removeSipUaHelperListener(this);
     try {
       if (_activeCall != null) {
@@ -211,10 +248,18 @@ class RelaySipAdapter implements SipUaHelperListener {
       return;
     }
 
-    _activeCall = call;
-    _attachDiagnostics(call);
+    final isTerminal = state.state == CallStateEnum.ENDED || state.state == CallStateEnum.FAILED;
+
+    if (!isTerminal) {
+      if (_activeCall == null || _activeCall!.id != call.id) {
+        _resetDiagnostics();
+      }
+      _activeCall = call;
+      _attachDiagnostics(call);
+    }
 
     final direction = call.direction == Direction.incoming ? CallDirection.incoming : CallDirection.outgoing;
+    final hasVideo = _checkCallHasVideo(call);
 
     final peer = call.remote_identity?.trim().isNotEmpty == true
         ? call.remote_identity!.trim()
@@ -231,6 +276,7 @@ class RelaySipAdapter implements SipUaHelperListener {
             lifecycle: lifecycle,
             initiatedAt: DateTime.now(),
           ),
+          hasVideo: hasVideo,
         );
       case CallStateEnum.CONNECTING:
         onCallSessionChanged?.call(
@@ -241,6 +287,7 @@ class RelaySipAdapter implements SipUaHelperListener {
             lifecycle: CallLifecycle.connecting,
             initiatedAt: DateTime.now(),
           ),
+          hasVideo: hasVideo,
         );
       case CallStateEnum.PROGRESS:
         _log('Call progress (ringing on remote)');
@@ -252,6 +299,7 @@ class RelaySipAdapter implements SipUaHelperListener {
             lifecycle: CallLifecycle.ringing,
             initiatedAt: DateTime.now(),
           ),
+          hasVideo: hasVideo,
         );
       case CallStateEnum.ACCEPTED:
       case CallStateEnum.CONFIRMED:
@@ -265,17 +313,37 @@ class RelaySipAdapter implements SipUaHelperListener {
             lifecycle: CallLifecycle.active,
             answeredAt: _answeredAt,
           ),
+          hasVideo: hasVideo,
         );
       case CallStateEnum.STREAM:
-        _log('Call media stream received: originator=${state.originator}');
-        if (state.stream != null && state.originator == Originator.remote) {
-          onRemoteStreamAdded?.call(state.stream!);
-          for (final track in state.stream!.getAudioTracks()) {
+        final stream = state.stream;
+        final streamId = stream?.id ?? 'unknown';
+        final audioCount = stream?.getAudioTracks().length ?? 0;
+        final videoCount = stream?.getVideoTracks().length ?? 0;
+        final streamSignature = '$streamId:orig=${state.originator}:a=$audioCount:v=$videoCount';
+
+        final isDuplicateStreamEvent = _lastRemoteStreamTracksSignature == streamSignature;
+        if (!isDuplicateStreamEvent) {
+          _lastRemoteStreamTracksSignature = streamSignature;
+          _log('Call media stream received: originator=${state.originator}');
+        }
+
+        if (stream != null && state.originator == Originator.remote) {
+          final hasVideoTrack = videoCount > 0;
+          final hasAudioTrack = audioCount > 0;
+          if (!isDuplicateStreamEvent) {
+            _log(
+              '[RTC Diagnostics] Remote video track ${hasVideoTrack ? 'present' : 'absent'} (audio=${hasAudioTrack ? 'present' : 'absent'})',
+            );
+          }
+          onRemoteStreamAdded?.call(stream);
+          for (final track in stream.getAudioTracks()) {
             track.enabled = true;
           }
         }
       case CallStateEnum.ENDED:
         _log('Call ended: ${state.cause}');
+        _resetDiagnostics();
         final endedAt = DateTime.now();
         final answered = _answeredAt;
         _answeredAt = null;
@@ -289,9 +357,11 @@ class RelaySipAdapter implements SipUaHelperListener {
             answeredAt: answered,
             endedAt: endedAt,
           ),
+          hasVideo: hasVideo,
         );
       case CallStateEnum.FAILED:
         _log('Call failed: ${state.cause}');
+        _resetDiagnostics();
         final endedAt = DateTime.now();
         final answered = _answeredAt;
         _answeredAt = null;
@@ -307,6 +377,7 @@ class RelaySipAdapter implements SipUaHelperListener {
             endedAt: endedAt,
             failureReason: failureReason,
           ),
+          hasVideo: hasVideo,
         );
       case CallStateEnum.MUTED:
       case CallStateEnum.UNMUTED:
@@ -316,6 +387,22 @@ class RelaySipAdapter implements SipUaHelperListener {
       case CallStateEnum.NONE:
         break;
     }
+  }
+
+  bool _checkCallHasVideo(Call call) {
+    if (!call.voiceOnly) return true;
+    final data = call.session.data;
+    if (data is Map && data?['video'] == true) return true;
+    final req = call.session.request;
+    if (req != null) {
+      try {
+        final body = req.body?.toString() ?? '';
+        if (body.contains('m=video') && !RegExp(r'm=video 0\b').hasMatch(body)) {
+          return true;
+        }
+      } catch (_) {}
+    }
+    return false;
   }
 
   @override
@@ -378,21 +465,22 @@ class RelaySipAdapter implements SipUaHelperListener {
 
   void _attachDiagnostics(Call call) {
     final id = call.id ?? '';
-    if (id.isNotEmpty && _diagnosticsSessions.contains(id)) {
-      _hookPeerConnection(call);
-      return;
-    }
-    if (id.isNotEmpty) {
+    if (id.isNotEmpty && !_diagnosticsSessions.contains(id)) {
       _diagnosticsSessions.add(id);
+      _log('[RTC Diagnostics] Call session registered: id=$id');
     }
-
-    _log('[RTC Diagnostics] Call session registered: id=$id');
     _hookPeerConnection(call);
   }
 
   void _hookPeerConnection(Call call) {
     final pc = call.peerConnection;
     if (pc == null) return;
+
+    final pcHash = identityHashCode(pc);
+    if (_hookedPeerConnectionHash == pcHash) {
+      return;
+    }
+    _hookedPeerConnectionHash = pcHash;
 
     final origIceCandidate = pc.onIceCandidate;
     pc.onIceCandidate = (candidate) {
@@ -410,7 +498,14 @@ class RelaySipAdapter implements SipUaHelperListener {
       _log('[RTC Diagnostics] ICE Connection State: ${state.name}');
       if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
-        _logSelectedCandidatePair(pc);
+        if (!_selectedCandidatePairLogged) {
+          _selectedCandidatePairLogged = true;
+          _logSelectedCandidatePair(pc);
+        }
+        _startVideoDiagnostics(pc);
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+        _stopVideoDiagnostics();
       }
       origIceConnection?.call(state);
     };
@@ -424,17 +519,90 @@ class RelaySipAdapter implements SipUaHelperListener {
       origIceGathering?.call(state);
     };
 
+    final origConnectionState = pc.onConnectionState;
     pc.onConnectionState = (state) {
       _log('[RTC Diagnostics] PeerConnection State: ${state.name}');
+      origConnectionState?.call(state);
     };
+  }
+
+  void _startVideoDiagnostics(RTCPeerConnection pc) {
+    if (_videoDiagnosticsTimer != null && _videoDiagnosticsTimer!.isActive) {
+      return;
+    }
+    _videoDiagnosticsTimer?.cancel();
+    _videoDiagnosticsTimer = Timer.periodic(const Duration(seconds: 4), (_) async {
+      if (_activeCall == null) {
+        _stopVideoDiagnostics();
+        return;
+      }
+      await _logVideoStats(pc);
+    });
+  }
+
+  void _stopVideoDiagnostics() {
+    _videoDiagnosticsTimer?.cancel();
+    _videoDiagnosticsTimer = null;
+  }
+
+  void _resetDiagnostics() {
+    _stopVideoDiagnostics();
+    _hookedPeerConnectionHash = null;
+    _selectedCandidatePairLogged = false;
+    _lastRemoteStreamTracksSignature = null;
+    _diagnosticsSessions.clear();
+  }
+
+  Future<void> _logVideoStats(RTCPeerConnection pc) async {
+    try {
+      final stats = await pc.getStats();
+      final codecs = <String, String>{};
+      for (final report in stats) {
+        if (report.type == 'codec') {
+          final mime = report.values['mimeType']?.toString() ?? report.values['codec']?.toString();
+          if (mime != null) {
+            codecs[report.id] = mime;
+          }
+        }
+      }
+
+      for (final report in stats) {
+        final kind = report.values['kind']?.toString() ?? report.values['mediaType']?.toString();
+        if (kind == 'video') {
+          if (report.type == 'outbound-rtp') {
+            final codecId = report.values['codecId']?.toString();
+            final codec = codecs[codecId] ?? codecId ?? 'unknown';
+            final w = report.values['frameWidth'];
+            final h = report.values['frameHeight'];
+            final framesSent = report.values['framesSent'];
+            final bytesSent = report.values['bytesSent'];
+            _log(
+              '[RTC Diagnostics] Outbound video: codec=$codec, res=${w}x$h, framesSent=$framesSent, bytesSent=$bytesSent',
+            );
+          } else if (report.type == 'inbound-rtp') {
+            final codecId = report.values['codecId']?.toString();
+            final codec = codecs[codecId] ?? codecId ?? 'unknown';
+            final w = report.values['frameWidth'];
+            final h = report.values['frameHeight'];
+            final framesRecv = report.values['framesReceived'];
+            final bytesRecv = report.values['bytesReceived'];
+            _log(
+              '[RTC Diagnostics] Inbound video: codec=$codec, res=${w}x$h, framesRecv=$framesRecv, bytesRecv=$bytesRecv',
+            );
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _logLocalSdpCandidates(RTCPeerConnection pc) async {
     try {
       final desc = await pc.getLocalDescription();
       if (desc?.sdp != null) {
-        final matches = RegExp(r'a=candidate:.*\btyp\s+(\w+).*?\b(udp|tcp)\b', caseSensitive: false)
-            .allMatches(desc!.sdp!);
+        final matches = RegExp(
+          r'a=candidate:.*\btyp\s+(\w+).*?\b(udp|tcp)\b',
+          caseSensitive: false,
+        ).allMatches(desc!.sdp!);
         for (final m in matches) {
           final typ = m.group(1);
           final proto = m.group(2)?.toUpperCase() ?? 'UDP';

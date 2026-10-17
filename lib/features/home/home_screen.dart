@@ -67,6 +67,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return;
     }
 
+    if (mode == 'video') {
+      final isRegistered = ref.read(sipControllerProvider).isRegistered;
+      if (!isRegistered) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please register your SIP account in Settings before calling.')));
+        return;
+      }
+
+      final permissions = ref.read(relayPermissionsProvider);
+      final micGranted = await RelayPermissionSheet.ensureMicrophone(context, permissions);
+      if (!micGranted) {
+        if (mounted) {
+          final status = await permissions.microphoneStatus();
+          if (status.isDenied) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('Microphone permission is required to make calls.')));
+          }
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      final camGranted = await RelayPermissionSheet.ensureCamera(context, permissions);
+      if (!camGranted) {
+        if (mounted) {
+          final status = await permissions.cameraStatus();
+          if (status.isDenied) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('Camera permission is required for video calls.')));
+          }
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      final success = await ref.read(callControllerProvider.notifier).startVideoCall(peer);
+      if (success && mounted) {
+        context.push(Uri(path: '/call', queryParameters: {'mode': 'video'}).toString());
+      }
+      return;
+    }
+
     context.push(Uri(path: '/call', queryParameters: {'mode': mode}).toString());
   }
 

@@ -9,26 +9,30 @@ class VideoCallControls extends StatelessWidget {
     required this.muted,
     required this.camera,
     required this.flipped,
+    this.speaker = true,
     required this.controlsVisible,
     required this.onToggleControls,
     required this.onToggleMute,
     required this.onToggleCamera,
     required this.onToggleFlip,
-    required this.onStartScreenShare,
-    required this.onMore,
+    this.onToggleSpeaker,
+    this.onStartScreenShare,
+    this.onMore,
     required this.onEndCall,
   });
 
   final bool muted;
   final bool camera;
   final bool flipped;
+  final bool speaker;
   final bool controlsVisible;
   final VoidCallback onToggleControls;
   final VoidCallback onToggleMute;
   final VoidCallback onToggleCamera;
   final VoidCallback onToggleFlip;
-  final VoidCallback onStartScreenShare;
-  final VoidCallback onMore;
+  final VoidCallback? onToggleSpeaker;
+  final VoidCallback? onStartScreenShare;
+  final VoidCallback? onMore;
   final VoidCallback onEndCall;
 
   @override
@@ -42,19 +46,13 @@ class VideoCallControls extends StatelessWidget {
         icon: const Icon(Icons.touch_app_outlined),
         style: IconButton.styleFrom(
           backgroundColor: colors.surfaceContainerHigh,
-          minimumSize: const Size(
-            RelaySizes.minimumTouchTarget,
-            RelaySizes.minimumTouchTarget,
-          ),
+          minimumSize: const Size(RelaySizes.minimumTouchTarget, RelaySizes.minimumTouchTarget),
         ),
       );
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: RelaySpacing.sm + 2,
-        vertical: RelaySpacing.sm + 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: RelaySpacing.sm + 2, vertical: RelaySpacing.sm + 6),
       decoration: BoxDecoration(
         color: colors.surfaceContainerHigh.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(RelayRadius.lg + 4),
@@ -94,20 +92,16 @@ class VideoCallControls extends StatelessWidget {
               rotateOnToggle: true,
               onPressed: onToggleFlip,
             ),
-            RelayCallControl(
-              size: RelaySizes.callControlSmall,
-              icon: Icons.screen_share_outlined,
-              label: 'Share',
-              semanticsLabel: 'Start screen sharing',
-              onPressed: onStartScreenShare,
-            ),
-            RelayCallControl(
-              size: RelaySizes.callControlSmall,
-              icon: Icons.more_horiz_rounded,
-              label: 'More',
-              semanticsLabel: 'More call options',
-              onPressed: onMore,
-            ),
+            if (onToggleSpeaker != null)
+              RelayCallControl(
+                size: RelaySizes.callControlSmall,
+                icon: speaker ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+                label: 'Speaker',
+                semanticsLabel: speaker ? 'Turn speakerphone off' : 'Turn speakerphone on',
+                active: speaker,
+                isToggle: true,
+                onPressed: onToggleSpeaker!,
+              ),
             RelayCallControl(
               size: RelaySizes.callControlSmall,
               icon: Icons.call_end_rounded,

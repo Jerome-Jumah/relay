@@ -1,4 +1,5 @@
 import 'package:cue/cue.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:relay/app/theme/relay_tokens.dart';
@@ -23,6 +24,10 @@ class ActiveCallStage extends StatelessWidget {
     required this.speaker,
     required this.camera,
     required this.flipped,
+    this.isFrontCamera = true,
+    this.localRenderer,
+    this.remoteRenderer,
+    this.hasRemoteVideo = false,
     required this.controlsVisible,
     required this.onToggleControls,
     required this.onToggleMute,
@@ -46,6 +51,10 @@ class ActiveCallStage extends StatelessWidget {
   final bool speaker;
   final bool camera;
   final bool flipped;
+  final bool isFrontCamera;
+  final RTCVideoRenderer? localRenderer;
+  final RTCVideoRenderer? remoteRenderer;
+  final bool hasRemoteVideo;
   final bool controlsVisible;
   final VoidCallback onToggleControls;
   final VoidCallback onToggleMute;
@@ -62,9 +71,7 @@ class ActiveCallStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isSharing = presentation == CallPresentation.screenShare;
-    final basePresentation = isSharing
-        ? (presentationBeforeSharing ?? CallPresentation.audio)
-        : presentation;
+    final basePresentation = isSharing ? (presentationBeforeSharing ?? CallPresentation.audio) : presentation;
     final isVideo = basePresentation == CallPresentation.video;
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
@@ -81,20 +88,20 @@ class ActiveCallStage extends StatelessWidget {
               child: IgnorePointer(
                 ignoring: !isVideo || isSharing,
                 child: VideoCallContent(
+                  remoteRenderer: remoteRenderer,
+                  hasRemoteVideo: hasRemoteVideo,
                   camera: camera,
                   flipped: flipped,
                   onToggleControls: onToggleControls,
                   onToggleFlip: onToggleFlip,
+                  fallback: AudioCallContent(peer: peer, status: status, timer: timer, muted: muted),
                 ),
               ),
             ),
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: RelaySpacing.md,
-                vertical: RelaySpacing.sm + 4,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md, vertical: RelaySpacing.sm + 4),
               child: Column(
                 children: [
                   CallHeader(
@@ -114,31 +121,17 @@ class ActiveCallStage extends StatelessWidget {
                           if (!isVideo)
                             Positioned.fill(
                               child: Actor(
-                                acts: [
-                                  .fadeOut(),
-                                  if (!reducedMotion) .scale(to: 0.95),
-                                ],
+                                acts: [.fadeOut(), if (!reducedMotion) .scale(to: 0.95)],
                                 child: IgnorePointer(
                                   ignoring: isSharing,
-                                  child: AudioCallContent(
-                                    peer: peer,
-                                    status: status,
-                                    timer: timer,
-                                    muted: muted,
-                                  ),
+                                  child: AudioCallContent(peer: peer, status: status, timer: timer, muted: muted),
                                 ),
                               ),
                             ),
                           Positioned.fill(
                             child: Actor(
-                              acts: [
-                                .fadeIn(),
-                                if (!reducedMotion) .scale(from: 0.95),
-                              ],
-                              child: IgnorePointer(
-                                ignoring: !isSharing,
-                                child: const ScreenShareContent(),
-                              ),
+                              acts: [.fadeIn(), if (!reducedMotion) .scale(from: 0.95)],
+                              child: IgnorePointer(ignoring: !isSharing, child: const ScreenShareContent()),
                             ),
                           ),
                         ],
@@ -171,22 +164,18 @@ class ActiveCallStage extends StatelessWidget {
           if (isVideo)
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.only(
-                  right: RelaySpacing.md,
-                  bottom: 110.0,
-                ),
+                padding: const EdgeInsets.only(right: RelaySpacing.md, bottom: 110.0),
                 child: Align(
                   alignment: Alignment.bottomRight,
                   child: Actor(
                     acts: [
-                      if (!reducedMotion) ...[
-                        .scale(to: 0.82, alignment: Alignment.bottomRight),
-                        .translateY(to: 16),
-                      ],
+                      if (!reducedMotion) ...[.scale(to: 0.82, alignment: Alignment.bottomRight), .translateY(to: 16)],
                     ],
                     child: LocalVideoPreview(
+                      localRenderer: localRenderer,
                       cameraOff: !camera,
                       flipped: flipped,
+                      isFrontCamera: isFrontCamera,
                       onTap: onToggleFlip,
                     ),
                   ),

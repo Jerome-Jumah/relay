@@ -87,8 +87,8 @@ class IncomingCallScreen extends ConsumerWidget {
                               onPressed: () async {
                                 HapticFeedback.mediumImpact();
                                 final permissions = ref.read(relayPermissionsProvider);
-                                final granted = await RelayPermissionSheet.ensureMicrophone(context, permissions);
-                                if (!granted) {
+                                final micGranted = await RelayPermissionSheet.ensureMicrophone(context, permissions);
+                                if (!micGranted) {
                                   if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('Microphone permission is required to answer calls.')),
@@ -96,15 +96,31 @@ class IncomingCallScreen extends ConsumerWidget {
                                   }
                                   return;
                                 }
-                                final success = await ref
-                                    .read(callControllerProvider.notifier)
-                                    .answerCall();
-                                if (success && context.mounted) {
-                                  context.go(
-                                    video
-                                        ? '/call?mode=video'
-                                        : '/call?mode=audio',
-                                  );
+
+                                if (video) {
+                                  if (!context.mounted) return;
+                                  final camGranted = await RelayPermissionSheet.ensureCamera(context, permissions);
+                                  if (!camGranted) {
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Camera permission is required for video calls.')),
+                                      );
+                                    }
+                                    return;
+                                  }
+                                  final success = await ref
+                                      .read(callControllerProvider.notifier)
+                                      .answerVideoCall();
+                                  if (success && context.mounted) {
+                                    context.go('/call?mode=video');
+                                  }
+                                } else {
+                                  final success = await ref
+                                      .read(callControllerProvider.notifier)
+                                      .answerCall();
+                                  if (success && context.mounted) {
+                                    context.go('/call?mode=audio');
+                                  }
                                 }
                               },
                               child: Semantics(

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:relay/features/call/call_presentation.dart';
@@ -35,22 +36,54 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   late CallPresentation _presentation = widget.initialPresentation;
   CallPresentation? _presentationBeforeSharing;
 
-  bool camera = true;
-  bool flipped = false;
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  bool _renderersInitialized = false;
+
   late bool controlsVisible = widget.controlsVisible;
   Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
+    _initRenderers();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
   }
 
+  Future<void> _initRenderers() async {
+    await _localRenderer.initialize();
+    await _remoteRenderer.initialize();
+    if (mounted) {
+      setState(() {
+        _renderersInitialized = true;
+      });
+      _syncStreams();
+    }
+  }
+
+  void _syncStreams() {
+    if (!_renderersInitialized) return;
+    final controller = ref.read(callControllerProvider.notifier);
+    final local = controller.localStream;
+    final remote = controller.remoteStream;
+
+    if (_localRenderer.srcObject != local) {
+      _localRenderer.srcObject = local;
+    }
+    if (_remoteRenderer.srcObject != remote) {
+      _remoteRenderer.srcObject = remote;
+    }
+  }
+
   @override
   void dispose() {
     _ticker?.cancel();
+    _localRenderer.srcObject = null;
+    _remoteRenderer.srcObject = null;
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
     super.dispose();
   }
 
@@ -72,7 +105,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void _switchToVideo() {
     HapticFeedback.mediumImpact();
     setState(() {
-      camera = true;
       _presentation = CallPresentation.video;
     });
   }
@@ -80,18 +112,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void _switchToAudio() {
     HapticFeedback.mediumImpact();
     setState(() {
-      camera = false;
       _presentation = CallPresentation.audio;
     });
   }
 
-  void _toggleCamera() {
-    setState(() {
-      camera = !camera;
-      if (!camera) {
-        _presentation = CallPresentation.audio;
-      }
-    });
+  Future<void> _toggleCamera() async {
+    HapticFeedback.mediumImpact();
+    await ref.read(callControllerProvider.notifier).toggleCamera();
+  }
+
+  Future<void> _toggleFlip() async {
+    HapticFeedback.mediumImpact();
+    await ref.read(callControllerProvider.notifier).flipCamera();
   }
 
   Future<void> _endCall() async {
@@ -127,10 +159,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         if (mounted) {
           context.go('/call-ended');
         }
+        return;
       }
+      _syncStreams();
     });
 
     final callState = ref.watch(callControllerProvider);
+    _syncStreams();
+
     final sessionPeer = callState.session.peer.trim();
     final peer = sessionPeer.isNotEmpty ? sessionPeer : 'Unknown';
     final status = callState.session.isActive
@@ -139,11 +175,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final timer = callState.session.formattedDuration;
     final muted = callState.isMuted;
     final speaker = callState.isSpeaker;
+    final camera = callState.isCameraEnabled;
+    final isFrontCamera = callState.isFrontCamera;
+    final flipped = !isFrontCamera;
+
+    final effectivePresentation = _presentationBeforeSharing == null && widget.initialPresentation == CallPresentation.audio && callState.presentation == CallPresentation.video
+        ? CallPresentation.video
+        : _presentation;
 
     return CallLayout(
       edgeToEdge: true,
       child: ActiveCallStage(
-        presentation: _presentation,
+        presentation: effectivePresentation,
         presentationBeforeSharing: _presentationBeforeSharing,
         peer: peer,
         status: status,
@@ -152,12 +195,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         speaker: speaker,
         camera: camera,
         flipped: flipped,
+        isFrontCamera: isFrontCamera,
+        localRenderer: _renderersInitialized ? _localRenderer : null,
+        remoteRenderer: _renderersInitialized ? _remoteRenderer : null,
+        hasRemoteVideo: callState.remoteVideoTrackPresent,
         controlsVisible: controlsVisible,
         onToggleControls: () => setState(() => controlsVisible = !controlsVisible),
         onToggleMute: () => ref.read(callControllerProvider.notifier).toggleMute(),
         onToggleSpeaker: () => ref.read(callControllerProvider.notifier).toggleSpeaker(),
         onToggleCamera: _toggleCamera,
-        onToggleFlip: () => setState(() => flipped = !flipped),
+        onToggleFlip: _toggleFlip,
         onStartVideo: _switchToVideo,
         onStartScreenShare: _startScreenShare,
         onStopScreenShare: _stopScreenShare,
