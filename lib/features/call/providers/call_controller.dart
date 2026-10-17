@@ -5,6 +5,7 @@ import 'package:relay/features/call/models/call_session.dart';
 import 'package:relay/features/call/models/call_state_data.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/sip_controller.dart';
+import 'package:relay/shared/permissions/relay_permissions.dart';
 
 class CallController extends Notifier<CallStateData> {
   MediaStream? _localStream;
@@ -50,6 +51,21 @@ class CallController extends Notifier<CallStateData> {
       return false;
     }
 
+    final permissions = ref.read(relayPermissionsProvider);
+    final hasMicPermission = await permissions.isMicrophoneGranted();
+    if (!hasMicPermission) {
+      state = CallStateData(
+        session: CallSession(
+          peer: peer,
+          direction: CallDirection.outgoing,
+          lifecycle: CallLifecycle.failed,
+          failureReason: 'Microphone permission denied',
+          endedAt: DateTime.now(),
+        ),
+      );
+      return false;
+    }
+
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
     } catch (_) {
@@ -58,7 +74,7 @@ class CallController extends Notifier<CallStateData> {
           peer: peer,
           direction: CallDirection.outgoing,
           lifecycle: CallLifecycle.failed,
-          failureReason: 'Microphone permission denied',
+          failureReason: 'Microphone acquisition failed',
           endedAt: DateTime.now(),
         ),
       );
@@ -98,6 +114,13 @@ class CallController extends Notifier<CallStateData> {
   }
 
   Future<bool> answerCall() async {
+    final permissions = ref.read(relayPermissionsProvider);
+    final hasMicPermission = await permissions.isMicrophoneGranted();
+    if (!hasMicPermission) {
+      await declineCall();
+      return false;
+    }
+
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
     } catch (_) {

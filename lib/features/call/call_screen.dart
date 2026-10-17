@@ -15,15 +15,12 @@ import 'package:relay/features/call/widgets/call_more_sheet.dart';
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({
     super.key,
-    this.peer,
     this.initialPresentation = CallPresentation.audio,
     this.status = CallUiStatus.connected,
     this.muted = false,
     this.speaker = false,
     this.controlsVisible = true,
   });
-
-  final String? peer;
   final CallPresentation initialPresentation;
   final CallUiStatus status;
   final bool muted;
@@ -135,10 +132,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
     final callState = ref.watch(callControllerProvider);
     final sessionPeer = callState.session.peer.trim();
-    final widgetPeer = widget.peer?.trim() ?? '';
-    final peer = sessionPeer.isNotEmpty
-        ? sessionPeer
-        : (widgetPeer.isNotEmpty ? widgetPeer : 'Unknown');
+    final peer = sessionPeer.isNotEmpty ? sessionPeer : 'Unknown';
     final status = callState.session.isActive
         ? CallUiStatus.connected
         : (callState.session.isConnecting ? callState.session.uiStatus : widget.status);

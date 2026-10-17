@@ -8,6 +8,8 @@ import 'package:relay/features/call/providers/call_controller.dart';
 import 'package:relay/features/call/widgets/call_focal.dart';
 import 'package:relay/features/call/widgets/call_layout.dart';
 import 'package:relay/features/call/widgets/relay_call_control.dart';
+import 'package:relay/shared/permissions/relay_permissions.dart';
+import 'package:relay/shared/widgets/relay_permission_sheet.dart';
 
 class IncomingCallScreen extends ConsumerWidget {
   const IncomingCallScreen({super.key, this.video = false});
@@ -84,6 +86,16 @@ class IncomingCallScreen extends ConsumerWidget {
                               ),
                               onPressed: () async {
                                 HapticFeedback.mediumImpact();
+                                final permissions = ref.read(relayPermissionsProvider);
+                                final granted = await RelayPermissionSheet.ensureMicrophone(context, permissions);
+                                if (!granted) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Microphone permission is required to answer calls.')),
+                                    );
+                                  }
+                                  return;
+                                }
                                 final success = await ref
                                     .read(callControllerProvider.notifier)
                                     .answerCall();
@@ -124,6 +136,16 @@ class IncomingCallScreen extends ConsumerWidget {
                         child: TextButton(
                           onPressed: () async {
                             HapticFeedback.mediumImpact();
+                            final permissions = ref.read(relayPermissionsProvider);
+                            final granted = await RelayPermissionSheet.ensureMicrophone(context, permissions);
+                            if (!granted) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Microphone permission is required to answer calls.')),
+                                );
+                              }
+                              return;
+                            }
                             final success = await ref
                                 .read(callControllerProvider.notifier)
                                 .answerCall();

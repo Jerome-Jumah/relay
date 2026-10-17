@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Relay uses your microphone to send audio during calls.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Relay uses your camera for video calls.</string>
 </dict>
 </plist>

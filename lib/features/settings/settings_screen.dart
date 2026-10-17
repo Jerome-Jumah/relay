@@ -4,9 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
+import 'package:relay/features/settings/models/call_preferences.dart';
+import 'package:relay/features/settings/providers/call_preferences_provider.dart';
 import 'package:relay/features/settings/providers/theme_mode_provider.dart';
 import 'package:relay/features/settings/widgets/theme_mode_selector.dart';
 import 'package:relay/features/sip/sip_controller.dart';
+import 'package:relay/shared/permissions/relay_permissions.dart';
+import 'package:relay/shared/widgets/relay_permission_sheet.dart';
 import 'package:relay/shared/widgets/relay_section.dart';
 import 'package:relay/shared/widgets/relay_settings_tile.dart';
 
@@ -17,13 +21,42 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBindingObserver {
   late final metadata = PackageInfo.fromPlatform();
-  String microphone = 'Default';
-  String camera = 'Front';
-  String output = 'Default';
-  bool mirrorSelfView = true;
-  String videoQuality = 'Auto';
+  bool _microphoneGranted = false;
+  bool _cameraGranted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshPermissions();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshPermissions();
+    }
+  }
+
+  Future<void> _refreshPermissions() async {
+    final permissions = ref.read(relayPermissionsProvider);
+    final mic = await permissions.isMicrophoneGranted();
+    final cam = await permissions.isCameraGranted();
+    if (mounted) {
+      setState(() {
+        _microphoneGranted = mic;
+        _cameraGranted = cam;
+      });
+    }
+  }
 
   void choose(String title, List<String> options, String selected, ValueChanged<String> update) {
     showModalBottomSheet<void>(
@@ -72,6 +105,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final sipState = ref.watch(sipControllerProvider);
+    final prefs = ref.watch(callPreferencesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -98,27 +132,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 RelaySettingsTile(
                   icon: Icons.mic_rounded,
                   title: 'Microphone',
-                  onTap: () => choose(
-                    'Microphone',
-                    ['Default', 'Phone microphone', 'Bluetooth microphone'],
-                    microphone,
-                    (value) => setState(() => microphone = value),
-                  ),
-                ),
-                RelaySettingsTile(
-                  icon: Icons.videocam_rounded,
-                  title: 'Camera',
-                  onTap: () => choose('Camera', ['Front', 'Back'], camera, (value) => setState(() => camera = value)),
+                  value: _microphoneGranted ? 'Allowed' : 'Not allowed',
+                  onTap: () async {
+                    if (!_microphoneGranted) {
+                      final permissions = ref.read(relayPermissionsProvider);
+                      await RelayPermissionSheet.ensureMicrophone(context, permissions);
+                      await _refreshPermissions();
+                    } else {
+                      information(
+                        'Microphone',
+                        'Microphone access is allowed. Relay uses your microphone to send audio during calls.',
+                      );
+                    }
+                  },
                 ),
                 RelaySettingsTile(
                   icon: Icons.volume_up_rounded,
-                  title: 'Audio output',
+                  title: 'Audio route',
+                  value: prefs.audioRoute,
                   divider: false,
                   onTap: () => choose(
-                    'Audio output',
-                    ['Default', 'Earpiece', 'Speaker', 'Bluetooth'],
-                    output,
-                    (value) => setState(() => output = value),
+                    'Audio route',
+                    CallPreferences.supportedAudioRoutes,
+                    prefs.audioRoute,
+                    (value) => ref.read(callPreferencesProvider.notifier).setAudioRoute(value),
                   ),
                 ),
               ],
@@ -127,26 +164,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'Video',
               children: [
                 RelaySettingsTile(
+                  icon: Icons.videocam_rounded,
+                  title: 'Camera',
+                  value: _cameraGranted ? 'Allowed' : 'Not allowed',
+                  onTap: () async {
+                    if (!_cameraGranted) {
+                      final permissions = ref.read(relayPermissionsProvider);
+                      await RelayPermissionSheet.ensureCamera(context, permissions);
+                      await _refreshPermissions();
+                    } else {
+                      information('Camera', 'Camera access is allowed. Relay uses your camera for video calls.');
+                    }
+                  },
+                ),
+                RelaySettingsTile(
                   icon: Icons.flip_camera_android_outlined,
-                  title: 'Mirror self view',
+                  title: 'Mirror self-view',
                   trailing: Switch(
-                    value: mirrorSelfView,
+                    value: prefs.mirrorSelfView,
                     onChanged: (value) {
                       HapticFeedback.lightImpact();
-                      setState(() => mirrorSelfView = value);
+                      ref.read(callPreferencesProvider.notifier).setMirrorSelfView(value);
                     },
                   ),
                 ),
                 RelaySettingsTile(
                   icon: Icons.signal_cellular_alt_rounded,
                   title: 'Video quality',
-                  value: videoQuality,
+                  value: prefs.videoQuality,
                   divider: false,
                   onTap: () => choose(
                     'Video quality',
-                    ['Auto', '720p', '1080p'],
-                    videoQuality,
-                    (value) => setState(() => videoQuality = value),
+                    CallPreferences.supportedVideoQualities,
+                    prefs.videoQuality,
+                    (value) => ref.read(callPreferencesProvider.notifier).setVideoQuality(value),
                   ),
                 ),
               ],

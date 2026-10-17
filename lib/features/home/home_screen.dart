@@ -2,11 +2,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/call/providers/call_controller.dart';
 import 'package:relay/features/home/widgets/home_action_card.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
 import 'package:relay/features/sip/sip_controller.dart';
+import 'package:relay/shared/permissions/relay_permissions.dart';
+import 'package:relay/shared/widgets/relay_permission_sheet.dart';
 import 'package:relay/shared/widgets/relay_status_pill.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -25,15 +28,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     super.dispose();
   }
 
-  void start(String mode) {
+  Future<void> start(String mode) async {
     HapticFeedback.mediumImpact();
     FocusScope.of(context).unfocus();
 
     final peer = destination.text.trim();
     if (peer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a destination extension before calling.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Please enter a destination extension before calling.')));
       return;
     }
 
@@ -45,17 +47,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ).showSnackBar(const SnackBar(content: Text('Please register your SIP account in Settings before calling.')));
         return;
       }
+
+      final permissions = ref.read(relayPermissionsProvider);
+      final granted = await RelayPermissionSheet.ensureMicrophone(context, permissions);
+      if (!granted) {
+        if (mounted) {
+          final status = await permissions.microphoneStatus();
+          if (status.isDenied) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text('Microphone permission is required to make calls.')));
+          }
+        }
+        return;
+      }
+
+      if (!mounted) return;
       ref.read(callControllerProvider.notifier).startAudioCall(peer);
       context.push(Uri(path: '/call', queryParameters: {'mode': 'audio'}).toString());
       return;
     }
 
-    context.push(
-      Uri(
-        path: '/call',
-        queryParameters: {'mode': mode},
-      ).toString(),
-    );
+    context.push(Uri(path: '/call', queryParameters: {'mode': mode}).toString());
   }
 
   @override
