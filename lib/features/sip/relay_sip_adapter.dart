@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/call/models/call_session.dart';
@@ -25,6 +26,38 @@ class RelaySipAdapter implements SipUaHelperListener {
   Call? get activeCall => _activeCall;
   bool get isRegistered => _helper.registered;
 
+  static List<Map<String, String>> buildIceServers() {
+    final stunUrl = dotenv.env['STUN_URL']?.trim().isNotEmpty == true
+        ? dotenv.env['STUN_URL']!.trim()
+        : 'stun:turn.code4flare.com:3478';
+
+    final turnBase = dotenv.env['TURN_URL']?.trim().isNotEmpty == true
+        ? dotenv.env['TURN_URL']!.trim()
+        : 'turn:turn.code4flare.com:3478';
+
+    final turnUsername = dotenv.env['TURN_USERNAME']?.trim() ?? '';
+    final turnPassword = dotenv.env['TURN_PASSWORD']?.trim() ?? '';
+
+    final udpTurnUrl = turnBase.contains('?') ? turnBase : '$turnBase?transport=udp';
+    final tcpTurnUrl = turnBase.contains('?') ? turnBase : '$turnBase?transport=tcp';
+
+    return [
+      {'urls': stunUrl},
+      if (turnUsername.isNotEmpty && turnPassword.isNotEmpty) ...[
+        {
+          'urls': udpTurnUrl,
+          'username': turnUsername,
+          'credential': turnPassword,
+        },
+        {
+          'urls': tcpTurnUrl,
+          'username': turnUsername,
+          'credential': turnPassword,
+        },
+      ],
+    ];
+  }
+
   Future<void> register(SipAccountConfig config) async {
     _log('Initiating registration for URI: ${config.sipUri}');
     _log('Signaling WebSocket URL: ${config.webSocketUrl}');
@@ -40,6 +73,11 @@ class RelaySipAdapter implements SipUaHelperListener {
     uaSettings.password = config.password;
     uaSettings.displayName = config.extension.trim();
     uaSettings.register = true;
+
+    final iceServers = buildIceServers();
+    uaSettings.iceServers = iceServers;
+    final hasTurn = dotenv.env['TURN_USERNAME']?.trim().isNotEmpty == true;
+    _log('Configured ${iceServers.length} ICE server(s): ${iceServers.map((s) => s['urls']).join(', ')} (TURN credentials: ${hasTurn ? 'present' : 'none'})');
 
     await _helper.start(uaSettings);
   }
@@ -64,7 +102,17 @@ class RelaySipAdapter implements SipUaHelperListener {
       return false;
     }
     _answeredAt = null;
-    return _helper.call(targetUri, voiceOnly: true, mediaStream: mediaStream);
+    final iceServers = buildIceServers();
+    return _helper.call(
+      targetUri,
+      voiceOnly: true,
+      mediaStream: mediaStream,
+      customOptions: {
+        'pcConfig': {
+          'iceServers': iceServers,
+        },
+      },
+    );
   }
 
   Future<void> answerCall({MediaStream? mediaStream}) async {
@@ -74,6 +122,9 @@ class RelaySipAdapter implements SipUaHelperListener {
     }
     _log('Answering incoming call ${_activeCall!.id}');
     final options = _helper.buildCallOptions(true);
+    final pcConfig = options['pcConfig'] as Map<String, dynamic>? ?? <String, dynamic>{};
+    pcConfig['iceServers'] = buildIceServers();
+    options['pcConfig'] = pcConfig;
     _activeCall!.answer(options, mediaStream: mediaStream);
   }
 
@@ -161,6 +212,7 @@ class RelaySipAdapter implements SipUaHelperListener {
     }
 
     _activeCall = call;
+    _attachDiagnostics(call);
 
     final direction = call.direction == Direction.incoming ? CallDirection.incoming : CallDirection.outgoing;
 
@@ -284,6 +336,7 @@ class RelaySipAdapter implements SipUaHelperListener {
         return 'Destination unavailable';
       }
       if (statusCode == 603 || statusCode == 403) return 'Call declined';
+      if (statusCode == 408) return 'RTP timeout: ICE connection failed';
       final causeText = cause.cause?.toString().toUpperCase() ?? '';
       if (causeText.contains('BUSY')) return 'User is busy';
       if (causeText.contains('REJECTED')) return 'Call declined';
@@ -319,6 +372,109 @@ class RelaySipAdapter implements SipUaHelperListener {
       }
     } catch (_) {}
     return 'Registration failed';
+  }
+
+  final Set<String> _diagnosticsSessions = <String>{};
+
+  void _attachDiagnostics(Call call) {
+    final id = call.id ?? '';
+    if (id.isNotEmpty && _diagnosticsSessions.contains(id)) {
+      _hookPeerConnection(call);
+      return;
+    }
+    if (id.isNotEmpty) {
+      _diagnosticsSessions.add(id);
+    }
+
+    _log('[RTC Diagnostics] Call session registered: id=$id');
+    _hookPeerConnection(call);
+  }
+
+  void _hookPeerConnection(Call call) {
+    final pc = call.peerConnection;
+    if (pc == null) return;
+
+    final origIceCandidate = pc.onIceCandidate;
+    pc.onIceCandidate = (candidate) {
+      final candStr = candidate.candidate ?? '';
+      final typMatch = RegExp(r'\btyp\s+(\w+)').firstMatch(candStr);
+      final candType = typMatch?.group(1) ?? 'unknown';
+      final protoMatch = RegExp(r'\b(udp|tcp)\b', caseSensitive: false).firstMatch(candStr);
+      final protocol = protoMatch?.group(1)?.toUpperCase() ?? 'UDP';
+      _log('[RTC Diagnostics] Local ICE candidate gathered: typ=$candType protocol=$protocol');
+      origIceCandidate?.call(candidate);
+    };
+
+    final origIceConnection = pc.onIceConnectionState;
+    pc.onIceConnectionState = (state) {
+      _log('[RTC Diagnostics] ICE Connection State: ${state.name}');
+      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        _logSelectedCandidatePair(pc);
+      }
+      origIceConnection?.call(state);
+    };
+
+    final origIceGathering = pc.onIceGatheringState;
+    pc.onIceGatheringState = (state) {
+      _log('[RTC Diagnostics] ICE Gathering State: ${state.name}');
+      if (state == RTCIceGatheringState.RTCIceGatheringStateComplete) {
+        _logLocalSdpCandidates(pc);
+      }
+      origIceGathering?.call(state);
+    };
+
+    pc.onConnectionState = (state) {
+      _log('[RTC Diagnostics] PeerConnection State: ${state.name}');
+    };
+  }
+
+  Future<void> _logLocalSdpCandidates(RTCPeerConnection pc) async {
+    try {
+      final desc = await pc.getLocalDescription();
+      if (desc?.sdp != null) {
+        final matches = RegExp(r'a=candidate:.*\btyp\s+(\w+).*?\b(udp|tcp)\b', caseSensitive: false)
+            .allMatches(desc!.sdp!);
+        for (final m in matches) {
+          final typ = m.group(1);
+          final proto = m.group(2)?.toUpperCase() ?? 'UDP';
+          _log('[RTC Diagnostics] Local SDP candidate: typ=$typ protocol=$proto');
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _logSelectedCandidatePair(RTCPeerConnection pc) async {
+    try {
+      final stats = await pc.getStats();
+      for (final report in stats) {
+        if (report.type == 'candidate-pair' &&
+            (report.values['state'] == 'succeeded' ||
+                report.values['nominated'] == true ||
+                report.values['selected'] == true)) {
+          final localCandId = report.values['localCandidateId'];
+          final remoteCandId = report.values['remoteCandidateId'];
+
+          String localType = 'unknown';
+          String remoteType = 'unknown';
+          final protocol = report.values['protocol']?.toString() ?? 'UDP';
+
+          for (final r in stats) {
+            if (r.id == localCandId) {
+              localType = r.values['candidateType']?.toString() ?? 'unknown';
+            }
+            if (r.id == remoteCandId) {
+              remoteType = r.values['candidateType']?.toString() ?? 'unknown';
+            }
+          }
+
+          _log('[RTC Diagnostics] Selected candidate pair: local=$localType, remote=$remoteType ($protocol)');
+          return;
+        }
+      }
+    } catch (e) {
+      _log('[RTC Diagnostics] Candidate pair lookup: $e');
+    }
   }
 
   void _log(String message) {
