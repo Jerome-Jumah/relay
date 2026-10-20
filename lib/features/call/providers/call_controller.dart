@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -8,6 +9,7 @@ import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/call/models/call_session.dart';
 import 'package:relay/features/call/models/call_state_data.dart';
 import 'package:relay/features/call/models/requested_call_mode.dart';
+import 'package:relay/features/call/services/relay_screen_share_service.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/sip_controller.dart';
 import 'package:relay/shared/permissions/relay_permissions.dart';
@@ -16,10 +18,81 @@ class CallController extends Notifier<CallStateData> {
   MediaStream? _localStream;
   MediaStream? _remoteStream;
   MediaStream? _cameraStream;
+  MediaStream? _screenShareStream;
+  CallPresentation? _presentationBeforeSharing;
 
   MediaStream? get localStream => _localStream;
   MediaStream? get remoteStream => _remoteStream;
   MediaStream? get cameraStream => _cameraStream;
+  MediaStream? get screenShareStream => _screenShareStream;
+  CallPresentation? get presentationBeforeSharing => _presentationBeforeSharing;
+  bool get isScreenSharing => state.presentation == CallPresentation.screenShare;
+
+  String get localVideoSource {
+    if (_screenShareStream != null && state.presentation == CallPresentation.screenShare) {
+      return 'display';
+    }
+    if (_cameraStream != null && state.localVideoActive) {
+      return 'camera';
+    }
+    return 'none';
+  }
+
+  String? get currentLocalVideoTrackId {
+    if (localVideoSource == 'display') {
+      return _screenShareStream?.getVideoTracks().firstOrNull?.id;
+    }
+    if (localVideoSource == 'camera') {
+      return _cameraStream?.getVideoTracks().firstOrNull?.id;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> getOutboundVideoDiagnostics() async {
+    final adapter = ref.read(sipAdapterProvider);
+    final pc = adapter.peerConnection;
+    final Map<String, dynamic> diagnostics = {
+      'localVideoSource': localVideoSource,
+      'trackId': currentLocalVideoTrackId,
+      'codec': 'unknown',
+      'resolution': 'unknown',
+      'framesSent': 0,
+      'bytesSent': 0,
+    };
+
+    if (pc == null) return diagnostics;
+
+    try {
+      final stats = await pc.getStats();
+      final codecs = <String, String>{};
+      for (final report in stats) {
+        if (report.type == 'codec') {
+          final mime = report.values['mimeType']?.toString() ?? report.values['codec']?.toString();
+          if (mime != null) {
+            codecs[report.id] = mime;
+          }
+        }
+      }
+
+      for (final report in stats) {
+        final kind = report.values['kind']?.toString() ?? report.values['mediaType']?.toString();
+        if (kind == 'video' && report.type == 'outbound-rtp') {
+          final codecId = report.values['codecId']?.toString();
+          diagnostics['codec'] = codecs[codecId] ?? codecId ?? 'unknown';
+          final w = report.values['frameWidth'];
+          final h = report.values['frameHeight'];
+          if (w != null && h != null) {
+            diagnostics['resolution'] = '${w}x$h';
+          }
+          diagnostics['framesSent'] = report.values['framesSent'] ?? 0;
+          diagnostics['bytesSent'] = report.values['bytesSent'] ?? 0;
+          break;
+        }
+      }
+    } catch (_) {}
+
+    return diagnostics;
+  }
 
   @override
   CallStateData build() {
@@ -100,6 +173,13 @@ class CallController extends Notifier<CallStateData> {
     ref.onDispose(() {
       _cleanupMedia(updateState: false);
     });
+
+    RelayScreenShareService.initialize(
+      onStopRequested: () {
+        _log('[RelayShare] onStopScreenShareRequested received from platform');
+        stopScreenShare();
+      },
+    );
 
     return const CallStateData();
   }
@@ -496,6 +576,11 @@ class CallController extends Notifier<CallStateData> {
       _remoteStream!.onRemoveTrack = null;
       _remoteStream = null;
     }
+
+    // Clean up screen sharing if active
+    await _cleanupScreenShareStream();
+    _presentationBeforeSharing = null;
+
     if (updateState) {
       state = state.copyWith(
         localVideoTrackPresent: false,
@@ -625,7 +710,8 @@ class CallController extends Notifier<CallStateData> {
       return false;
     }
 
-    final senderTrackBefore = '${videoTransceiver.sender.track?.id}/${videoTransceiver.sender.track != null ? (videoTransceiver.sender.track!.enabled ? "live" : "ended") : "none"}';
+    final senderTrackBefore =
+        '${videoTransceiver.sender.track?.id}/${videoTransceiver.sender.track != null ? (videoTransceiver.sender.track!.enabled ? "live" : "ended") : "none"}';
     _log('[RelayMedia] senderTrackBefore=$senderTrackBefore');
 
     _log('[RTC Diagnostics] Reusing pre-negotiated video sender');
@@ -639,7 +725,8 @@ class CallController extends Notifier<CallStateData> {
     await videoTransceiver.setDirection(TransceiverDirection.SendRecv);
     _log('[RTC Diagnostics] Video transceiver direction changed: $oldDirStr -> sendrecv');
 
-    final senderTrackAfter = '${videoTransceiver.sender.track?.id}/${videoTransceiver.sender.track != null ? (videoTransceiver.sender.track!.enabled ? "live" : "ended") : "none"}';
+    final senderTrackAfter =
+        '${videoTransceiver.sender.track?.id}/${videoTransceiver.sender.track != null ? (videoTransceiver.sender.track!.enabled ? "live" : "ended") : "none"}';
     _log('[RelayMedia] senderTrackAfter=$senderTrackAfter');
 
     if (_localStream == null) {
@@ -737,7 +824,8 @@ class CallController extends Notifier<CallStateData> {
         }
 
         if (videoTransceiver != null) {
-          final senderTrackBefore = '${videoTransceiver.sender.track?.id}/${videoTransceiver.sender.track != null ? (videoTransceiver.sender.track!.enabled ? "live" : "ended") : "none"}';
+          final senderTrackBefore =
+              '${videoTransceiver.sender.track?.id}/${videoTransceiver.sender.track != null ? (videoTransceiver.sender.track!.enabled ? "live" : "ended") : "none"}';
           _log('[RelayMedia] senderTrackBefore=$senderTrackBefore');
           await videoTransceiver.sender.replaceTrack(null);
           _log('[RelayMedia] replaceTrack(null) complete');
@@ -747,7 +835,8 @@ class CallController extends Notifier<CallStateData> {
           final senders = await pc.getSenders();
           for (final s in senders) {
             if (s.track?.kind == 'video') {
-              final senderTrackBefore = '${s.track?.id}/${s.track != null ? (s.track!.enabled ? "live" : "ended") : "none"}';
+              final senderTrackBefore =
+                  '${s.track?.id}/${s.track != null ? (s.track!.enabled ? "live" : "ended") : "none"}';
               _log('[RelayMedia] senderTrackBefore=$senderTrackBefore');
               await s.replaceTrack(null);
               _log('[RelayMedia] replaceTrack(null) complete');
@@ -784,6 +873,11 @@ class CallController extends Notifier<CallStateData> {
       _log('[RelayMedia] cached camera references cleared');
     }
 
+    if (_screenShareStream != null) {
+      await _cleanupScreenShareStream();
+      _presentationBeforeSharing = null;
+    }
+
     // 4. Renegotiate with voiceOnly: true
     _log('[RTC Diagnostics] Renegotiation started for video downgrade');
     final success = await adapter.renegotiate(voiceOnly: true);
@@ -807,6 +901,237 @@ class CallController extends Notifier<CallStateData> {
 
     _log('[RTC Diagnostics] Video downgrade completed: presentation=$nextPresentation');
     return success;
+  }
+
+  Future<bool> startScreenShare() async {
+    if (!state.session.isActive) {
+      _log('[RelayShare] Cannot start screen share: call is not active');
+      return false;
+    }
+    if (state.presentation == CallPresentation.screenShare) {
+      _log('[RelayShare] Already screen sharing');
+      return true;
+    }
+
+    _log('[RelayShare] Start screen share requested');
+    _presentationBeforeSharing = state.presentation;
+
+    if (Platform.isAndroid) {
+      _log('[RelayShare] requesting MediaProjection consent');
+      final granted = await Helper.requestCapturePermission();
+
+      if (!granted) {
+        _log('[RelayShare] MediaProjection consent denied by user');
+        _presentationBeforeSharing = null;
+        return false;
+      }
+      _log('[RelayShare] MediaProjection consent granted');
+
+      _log('[RelayShare] starting mediaProjection FGS');
+      await RelayScreenShareService.startPlatformService(peer: state.session.peer);
+      _log('[RelayShare] mediaProjection FGS start requested');
+
+      // Required synchronization boundary from the working Android 14 pattern.
+      _log('[RelayShare] waiting for foreground service readiness');
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    _log('[RelayShare] invoking getDisplayMedia');
+    MediaStream displayStream;
+    try {
+      displayStream = await navigator.mediaDevices.getDisplayMedia(<String, dynamic>{
+        'video': {'mediaSource': 'screen'},
+        'audio': false,
+      });
+    } catch (e) {
+      _log('[RelayShare] capture failed: $e');
+      await RelayScreenShareService.stopPlatformService();
+      _presentationBeforeSharing = null;
+      return false;
+    }
+
+    final displayTracks = displayStream.getVideoTracks();
+    if (displayTracks.isEmpty) {
+      _log('[RelayShare] capture failed: no video tracks');
+      try {
+        await displayStream.dispose();
+      } catch (_) {}
+      await RelayScreenShareService.stopPlatformService();
+      _presentationBeforeSharing = null;
+      return false;
+    }
+
+    final displayTrack = displayTracks.first;
+    _screenShareStream = displayStream;
+    _log('[RelayShare] capture started: trackId=${displayTrack.id}');
+    _log('[RelayShare] diagnostics: localVideoSource=$localVideoSource, trackId=${displayTrack.id}');
+
+    // Listen for OS or user termination of screen capture
+    displayTrack.onEnded = () {
+      _log('[RelayShare] display track onEnded received from system');
+      stopScreenShare();
+    };
+
+    final adapter = ref.read(sipAdapterProvider);
+    final pc = adapter.peerConnection;
+    if (pc == null) {
+      _log('[RelayShare] PeerConnection is null, aborting');
+      await _cleanupScreenShareStream();
+      _presentationBeforeSharing = null;
+      return false;
+    }
+
+    RTCRtpTransceiver? videoTransceiver;
+    try {
+      final transceivers = await pc.getTransceivers();
+      for (final t in transceivers) {
+        if (t.sender.track?.kind == 'video' || t.receiver.track?.kind == 'video') {
+          videoTransceiver = t;
+          break;
+        }
+      }
+      if (videoTransceiver == null && transceivers.length > 1) {
+        videoTransceiver = transceivers[1];
+      }
+    } catch (e) {
+      _log('[RelayShare] Error inspecting transceivers: $e');
+    }
+
+    if (videoTransceiver == null) {
+      _log('[RelayShare] No video transceiver found');
+      await _cleanupScreenShareStream();
+      _presentationBeforeSharing = null;
+      return false;
+    }
+
+    await videoTransceiver.sender.replaceTrack(displayTrack);
+    _log('[RelayShare] sender replaced');
+
+    // If starting from audio call, video transceiver was recvonly.
+    // Transition to sendrecv and renegotiate the same SIP dialog.
+    if (_presentationBeforeSharing == CallPresentation.audio) {
+      await videoTransceiver.setDirection(TransceiverDirection.SendRecv);
+      _log('[RelayShare] renegotiation started');
+      final renegSuccess = await adapter.renegotiate(voiceOnly: false);
+      _log('[RelayShare] renegotiation complete: success=$renegSuccess');
+      if (!renegSuccess) {
+        _log('[RelayShare] Renegotiation rejected/failed, rolling back to audio');
+        await videoTransceiver.sender.replaceTrack(null);
+        await videoTransceiver.setDirection(TransceiverDirection.RecvOnly);
+        await _cleanupScreenShareStream();
+        _presentationBeforeSharing = null;
+        return false;
+      }
+    } else {
+      // Starting from video call: transceiver is already sendrecv.
+      // The outgoing RTP stream seamlessly replaces camera frames with display frames.
+      _log('[RelayShare] Screen sharing active over existing sendrecv video transceiver');
+    }
+
+    state = state.copyWith(
+      presentation: CallPresentation.screenShare,
+      localVideoTrackPresent: true,
+      localVideoActive: true,
+    );
+
+    return true;
+  }
+
+  Future<bool> stopScreenShare() async {
+    if (_screenShareStream == null && state.presentation != CallPresentation.screenShare) {
+      return true;
+    }
+
+    _log('[RelayShare] Stop screen share requested');
+    final previousPresentation = _presentationBeforeSharing ?? CallPresentation.audio;
+    final adapter = ref.read(sipAdapterProvider);
+    final pc = adapter.peerConnection;
+
+    RTCRtpTransceiver? videoTransceiver;
+    if (pc != null) {
+      try {
+        final transceivers = await pc.getTransceivers();
+        for (final t in transceivers) {
+          if (t.sender.track?.kind == 'video' || t.receiver.track?.kind == 'video') {
+            videoTransceiver = t;
+            break;
+          }
+        }
+        if (videoTransceiver == null && transceivers.length > 1) {
+          videoTransceiver = transceivers[1];
+        }
+      } catch (_) {}
+    }
+
+    if (previousPresentation == CallPresentation.video) {
+      // Returning to video call: restore previous camera track
+      final cameraTrack = _cameraStream?.getVideoTracks().firstOrNull;
+      if (videoTransceiver != null && cameraTrack != null) {
+        await videoTransceiver.sender.replaceTrack(cameraTrack);
+        _log('[RelayShare] sender replaced with camera track');
+      }
+      _log('[RelayShare] Camera stream preserved and restored');
+    } else {
+      // Returning to audio call: return transceiver to dormant recvonly and renegotiate
+      if (videoTransceiver != null) {
+        await videoTransceiver.sender.replaceTrack(null);
+        await videoTransceiver.setDirection(TransceiverDirection.RecvOnly);
+        _log('[RelayShare] video transceiver returned to dormant recvonly');
+      }
+      _log('[RelayShare] renegotiation started');
+      await adapter.renegotiate(voiceOnly: true);
+      _log('[RelayShare] renegotiation complete');
+    }
+
+    await _cleanupScreenShareStream();
+    _presentationBeforeSharing = null;
+    _log('[RelayShare] capture ended');
+    _log('[RelayShare] previous presentation restored: ${previousPresentation.name}');
+
+    state = state.copyWith(
+      presentation: previousPresentation,
+      localVideoActive: previousPresentation == CallPresentation.video,
+      isCameraEnabled: previousPresentation == CallPresentation.video && _cameraStream != null,
+      localVideoTrackPresent: previousPresentation == CallPresentation.video && _cameraStream != null,
+    );
+
+    return true;
+  }
+
+  Future<void> _cleanupScreenShareStream() async {
+    if (_screenShareStream != null) {
+      for (final track in _screenShareStream!.getTracks()) {
+        track.onEnded = null;
+        try {
+          track.stop();
+        } catch (_) {}
+      }
+      try {
+        await _screenShareStream!.dispose();
+      } catch (_) {}
+      _screenShareStream = null;
+    }
+    await RelayScreenShareService.stopPlatformService();
+  }
+
+  Future<String> getVideoTransceiverDirection() async {
+    final adapter = ref.read(sipAdapterProvider);
+    final pc = adapter.peerConnection;
+    if (pc == null) return 'none';
+    try {
+      final transceivers = await pc.getTransceivers();
+      for (final t in transceivers) {
+        if (t.sender.track?.kind == 'video' || t.receiver.track?.kind == 'video') {
+          final dir = await t.getDirection();
+          return _directionToString(dir);
+        }
+      }
+      if (transceivers.length > 1) {
+        final dir = await transceivers[1].getDirection();
+        return _directionToString(dir);
+      }
+    } catch (_) {}
+    return 'unknown';
   }
 
   String _directionToString(TransceiverDirection? dir) {

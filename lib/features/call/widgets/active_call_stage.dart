@@ -136,7 +136,7 @@ class ActiveCallStage extends StatelessWidget {
                           Positioned.fill(
                             child: Actor(
                               acts: [.fadeIn(), if (!reducedMotion) .scale(from: 0.95)],
-                              child: IgnorePointer(ignoring: !isSharing, child: const ScreenShareContent()),
+                              child: IgnorePointer(ignoring: !isSharing, child: ScreenShareContent(peer: peer)),
                             ),
                           ),
                         ],

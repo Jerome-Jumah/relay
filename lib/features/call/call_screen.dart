@@ -34,8 +34,6 @@ class CallScreen extends ConsumerStatefulWidget {
 }
 
 class _CallScreenState extends ConsumerState<CallScreen> {
-  CallPresentation? _presentationBeforeSharing;
-
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   bool _renderersInitialized = false;
@@ -89,17 +87,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     super.dispose();
   }
 
-  void _startScreenShare() {
+  Future<void> _startScreenShare() async {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _presentationBeforeSharing = ref.read(callControllerProvider).presentation;
-    });
+    final success = await ref.read(callControllerProvider.notifier).startScreenShare();
+    if (!success && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not start screen sharing.'), duration: Duration(seconds: 2)));
+    }
   }
 
-  void _stopScreenShare() {
-    setState(() {
-      _presentationBeforeSharing = null;
-    });
+  Future<void> _stopScreenShare() async {
+    HapticFeedback.mediumImpact();
+    await ref.read(callControllerProvider.notifier).stopScreenShare();
   }
 
   Future<void> _switchToVideo() async {
@@ -141,12 +141,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   void _showMore() {
     final callState = ref.read(callControllerProvider);
-    final effectivePresentation = _presentationBeforeSharing != null
-        ? CallPresentation.screenShare
-        : callState.presentation;
     CallMoreSheet.show(
       context,
-      presentation: effectivePresentation,
+      presentation: callState.presentation,
       onStartScreenShare: _startScreenShare,
       onStopScreenShare: _stopScreenShare,
       onSwitchToAudio: _switchToAudio,
@@ -202,9 +199,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final isFrontCamera = callState.isFrontCamera;
     final flipped = !isFrontCamera;
 
-    final effectivePresentation = _presentationBeforeSharing != null
-        ? CallPresentation.screenShare
-        : callState.presentation;
+    final effectivePresentation = callState.presentation;
+    final presentationBeforeSharing = ref.read(callControllerProvider.notifier).presentationBeforeSharing;
 
     developer.log(
       '[RelayCallUI] effectivePresentation=$effectivePresentation remoteVideoActive=${callState.remoteVideoActive} localVideoActive=${callState.localVideoActive}',
@@ -215,7 +211,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       edgeToEdge: true,
       child: ActiveCallStage(
         presentation: effectivePresentation,
-        presentationBeforeSharing: _presentationBeforeSharing,
+        presentationBeforeSharing: presentationBeforeSharing,
         peer: peer,
         status: status,
         timer: timer,
