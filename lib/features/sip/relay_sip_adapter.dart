@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/call/models/call_session.dart';
+import 'package:relay/features/call/models/requested_call_mode.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
 import 'package:sip_ua/sip_ua.dart';
@@ -18,8 +19,14 @@ class RelaySipAdapter implements SipUaHelperListener {
 
   void Function(SipRegistrationStatus status, {String? errorMessage})? onStatusChanged;
 
-  void Function(CallSession session, {bool hasVideo})? onCallSessionChanged;
+  void Function(
+    CallSession session, {
+    bool hasVideo,
+    bool videoCapability,
+    RequestedCallMode requestedCallMode,
+  })? onCallSessionChanged;
   void Function(MediaStream remoteStream)? onRemoteStreamAdded;
+  void Function({required bool hasVideo})? onRemoteReinviteAccepted;
 
   Call? _activeCall;
   DateTime? _answeredAt;
@@ -29,6 +36,7 @@ class RelaySipAdapter implements SipUaHelperListener {
   String? _lastRemoteStreamTracksSignature;
 
   Call? get activeCall => _activeCall;
+  RTCPeerConnection? get peerConnection => _activeCall?.peerConnection;
   bool get isRegistered => _helper.registered;
 
   static List<Map<String, String>> buildIceServers() {
@@ -107,8 +115,27 @@ class RelaySipAdapter implements SipUaHelperListener {
       targetUri,
       voiceOnly: true,
       mediaStream: mediaStream,
-      customOptions: {
-        'pcConfig': {'iceServers': iceServers},
+      headers: <String>['X-Relay-Call-Mode: audio'],
+      customOptions: <String, dynamic>{
+        'videoReady': true,
+        'pcConfig': <String, dynamic>{
+          'iceServers': iceServers,
+          'videoReady': true,
+        },
+        'rtcOfferConstraints': <String, dynamic>{
+          'mandatory': <String, dynamic>{
+            'OfferToReceiveAudio': true,
+            'OfferToReceiveVideo': true,
+          },
+          'optional': <dynamic>[],
+        },
+        'rtcAnswerConstraints': <String, dynamic>{
+          'mandatory': <String, dynamic>{
+            'OfferToReceiveAudio': true,
+            'OfferToReceiveVideo': true,
+          },
+          'optional': <dynamic>[],
+        },
       },
     );
   }
@@ -126,8 +153,9 @@ class RelaySipAdapter implements SipUaHelperListener {
       targetUri,
       voiceOnly: false,
       mediaStream: mediaStream,
-      customOptions: {
-        'pcConfig': {'iceServers': iceServers},
+      headers: <String>['X-Relay-Call-Mode: video'],
+      customOptions: <String, dynamic>{
+        'pcConfig': <String, dynamic>{'iceServers': iceServers},
       },
     );
   }
@@ -141,7 +169,16 @@ class RelaySipAdapter implements SipUaHelperListener {
     final options = _helper.buildCallOptions(true);
     final pcConfig = options['pcConfig'] as Map<String, dynamic>? ?? <String, dynamic>{};
     pcConfig['iceServers'] = buildIceServers();
+    pcConfig['videoReady'] = true;
     options['pcConfig'] = pcConfig;
+    options['videoReady'] = true;
+    options['rtcAnswerConstraints'] = <String, dynamic>{
+      'mandatory': <String, dynamic>{
+        'OfferToReceiveAudio': true,
+        'OfferToReceiveVideo': true,
+      },
+      'optional': <dynamic>[],
+    };
     _activeCall!.answer(options, mediaStream: mediaStream);
   }
 
@@ -259,7 +296,11 @@ class RelaySipAdapter implements SipUaHelperListener {
     }
 
     final direction = call.direction == Direction.incoming ? CallDirection.incoming : CallDirection.outgoing;
-    final hasVideo = _checkCallHasVideo(call);
+    final requestedMode = _parseRequestedCallMode(call);
+    final hasVideo = direction == CallDirection.outgoing
+        ? !call.voiceOnly
+        : (requestedMode == RequestedCallMode.video && _checkCallHasVideo(call));
+    final videoCapability = _checkCallHasVideoCapability(call);
 
     final peer = call.remote_identity?.trim().isNotEmpty == true
         ? call.remote_identity!.trim()
@@ -277,6 +318,8 @@ class RelaySipAdapter implements SipUaHelperListener {
             initiatedAt: DateTime.now(),
           ),
           hasVideo: hasVideo,
+          videoCapability: videoCapability,
+          requestedCallMode: requestedMode,
         );
       case CallStateEnum.CONNECTING:
         onCallSessionChanged?.call(
@@ -288,6 +331,8 @@ class RelaySipAdapter implements SipUaHelperListener {
             initiatedAt: DateTime.now(),
           ),
           hasVideo: hasVideo,
+          videoCapability: videoCapability,
+          requestedCallMode: requestedMode,
         );
       case CallStateEnum.PROGRESS:
         _log('Call progress (ringing on remote)');
@@ -300,6 +345,8 @@ class RelaySipAdapter implements SipUaHelperListener {
             initiatedAt: DateTime.now(),
           ),
           hasVideo: hasVideo,
+          videoCapability: videoCapability,
+          requestedCallMode: requestedMode,
         );
       case CallStateEnum.ACCEPTED:
       case CallStateEnum.CONFIRMED:
@@ -314,6 +361,8 @@ class RelaySipAdapter implements SipUaHelperListener {
             answeredAt: _answeredAt,
           ),
           hasVideo: hasVideo,
+          videoCapability: videoCapability,
+          requestedCallMode: requestedMode,
         );
       case CallStateEnum.STREAM:
         final stream = state.stream;
@@ -358,6 +407,8 @@ class RelaySipAdapter implements SipUaHelperListener {
             endedAt: endedAt,
           ),
           hasVideo: hasVideo,
+          videoCapability: videoCapability,
+          requestedCallMode: requestedMode,
         );
       case CallStateEnum.FAILED:
         _log('Call failed: ${state.cause}');
@@ -378,6 +429,8 @@ class RelaySipAdapter implements SipUaHelperListener {
             failureReason: failureReason,
           ),
           hasVideo: hasVideo,
+          videoCapability: videoCapability,
+          requestedCallMode: requestedMode,
         );
       case CallStateEnum.MUTED:
       case CallStateEnum.UNMUTED:
@@ -389,16 +442,149 @@ class RelaySipAdapter implements SipUaHelperListener {
     }
   }
 
-  bool _checkCallHasVideo(Call call) {
-    if (!call.voiceOnly) return true;
-    final data = call.session.data;
-    if (data is Map && data?['video'] == true) return true;
+  static bool isRemoteVideoActiveInParsedSdp(Map<String, dynamic>? parsedSdp) {
+    if (parsedSdp == null) return false;
+    final mediaList = parsedSdp['media'];
+    if (mediaList is List) {
+      final sessionDir = parsedSdp['direction']?.toString().toLowerCase().trim();
+      for (final m in mediaList) {
+        if (m is Map && m['type'] == 'video') {
+          final port = m['port'];
+          if (port == 0 || port == '0') return false;
+          final mediaDir = m['direction']?.toString().toLowerCase().trim();
+          final effectiveDir = mediaDir ?? sessionDir ?? 'sendrecv';
+          if (effectiveDir == 'recvonly' || effectiveDir == 'inactive') {
+            return false;
+          }
+          if (effectiveDir == 'sendrecv' || effectiveDir == 'sendonly') {
+            return true;
+          }
+          return false;
+        }
+      }
+    }
+    return false;
+  }
+
+  static bool isRemoteVideoActiveInSdp(String? sdpString, {Map<String, dynamic>? parsedSdp}) {
+    if (sdpString == null || sdpString.isEmpty) return false;
+    if (!sdpString.contains('m=video')) return false;
+    if (RegExp(r'm=video\s+0\b').hasMatch(sdpString)) return false;
+
+    // 1. Check structured SDP if available
+    if (parsedSdp != null) {
+      return isRemoteVideoActiveInParsedSdp(parsedSdp);
+    }
+
+    // 2. Robust regex inspection of raw SDP lines
+    final mVideoMatch = RegExp(r'(?:^|\r?\n)m=video\s+(\d+)').firstMatch(sdpString);
+    if (mVideoMatch == null) return false;
+    final portStr = mVideoMatch.group(1);
+    if (portStr == '0') return false;
+
+    final videoStartIndex = mVideoMatch.start;
+    final nextMLineMatch = RegExp(r'\r?\nm=[a-z]+').firstMatch(sdpString.substring(videoStartIndex + 1));
+    final videoBlock = nextMLineMatch != null
+        ? sdpString.substring(videoStartIndex, videoStartIndex + 1 + nextMLineMatch.start)
+        : sdpString.substring(videoStartIndex);
+
+    // Media-level direction takes precedence
+    if (RegExp(r'(?:^|\r?\n)a=(recvonly|inactive)\b').hasMatch(videoBlock)) {
+      return false;
+    }
+    if (RegExp(r'(?:^|\r?\n)a=(sendrecv|sendonly)\b').hasMatch(videoBlock)) {
+      return true;
+    }
+
+    // Session-level direction fallback (before first m= line)
+    final firstMLineIndex = sdpString.indexOf(RegExp(r'\r?\nm='));
+    final sessionBlock = firstMLineIndex != -1 ? sdpString.substring(0, firstMLineIndex) : '';
+    if (RegExp(r'(?:^|\r?\n)a=(recvonly|inactive)\b').hasMatch(sessionBlock)) {
+      return false;
+    }
+    if (RegExp(r'(?:^|\r?\n)a=(sendrecv|sendonly)\b').hasMatch(sessionBlock)) {
+      return true;
+    }
+
+    // If direction is completely omitted, RFC 4566 default is sendrecv
+    return true;
+  }
+
+  static bool hasVideoCapabilityInSdp(String? sdpString) {
+    if (sdpString == null || sdpString.isEmpty) return false;
+    if (!sdpString.contains('m=video')) return false;
+    if (RegExp(r'm=video\s+0\b').hasMatch(sdpString)) return false;
+    return true;
+  }
+
+  RequestedCallMode _parseRequestedCallMode(Call call) {
+    if (call.direction == Direction.outgoing) {
+      return call.voiceOnly ? RequestedCallMode.audio : RequestedCallMode.video;
+    }
+
     final req = call.session.request;
     if (req != null) {
       try {
-        final body = req.body?.toString() ?? '';
-        if (body.contains('m=video') && !RegExp(r'm=video 0\b').hasMatch(body)) {
-          return true;
+        final modeHeader = req.getHeader('X-Relay-Call-Mode')?.toString().toLowerCase().trim();
+        if (modeHeader == 'video') {
+          return RequestedCallMode.video;
+        } else if (modeHeader == 'audio') {
+          return RequestedCallMode.audio;
+        }
+
+        final rawStr = req.toString();
+        final match = RegExp(r'(?i)x-relay-call-mode:\s*([a-zA-Z]+)').firstMatch(rawStr);
+        if (match != null) {
+          final mode = match.group(1)?.toLowerCase().trim();
+          if (mode == 'video') return RequestedCallMode.video;
+          if (mode == 'audio') return RequestedCallMode.audio;
+        }
+      } catch (_) {}
+    }
+
+    // Fallback if header is omitted (e.g. 3rd-party client or legacy):
+    final hasActiveRemoteVideo = _checkCallHasVideo(call);
+    return hasActiveRemoteVideo ? RequestedCallMode.video : RequestedCallMode.audio;
+  }
+
+  bool _checkCallHasVideo(Call call) {
+    // If local initiated a video call, local intent was active video
+    if (!call.voiceOnly && call.direction == Direction.outgoing) {
+      return true;
+    }
+
+    final data = call.session.data;
+    if (data is Map && data?['video'] == true && data?['videoReady'] != true) {
+      return true;
+    }
+
+    final req = call.session.request;
+    if (req != null) {
+      try {
+        final body = req.body?.toString();
+        if (body != null && body.isNotEmpty) {
+          Map<String, dynamic>? parsed;
+          try {
+            parsed = (req as dynamic).parseSDP();
+          } catch (_) {}
+          return isRemoteVideoActiveInSdp(body, parsedSdp: parsed);
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  bool _checkCallHasVideoCapability(Call call) {
+    final data = call.session.data;
+    if (data is Map && data?['videoReady'] == true) {
+      return true;
+    }
+    final req = call.session.request;
+    if (req != null) {
+      try {
+        final body = req.body?.toString();
+        if (body != null && body.isNotEmpty) {
+          return hasVideoCapabilityInSdp(body);
         }
       } catch (_) {}
     }
@@ -411,8 +597,91 @@ class RelaySipAdapter implements SipUaHelperListener {
   @override
   void onNewNotify(Notify ntf) {}
 
+  Future<bool> renegotiate({bool voiceOnly = false}) async {
+    final call = _activeCall;
+    if (call == null) {
+      _log('Cannot renegotiate: no active call');
+      return false;
+    }
+    _log('[RTC Diagnostics] SIP renegotiation started (voiceOnly=$voiceOnly)');
+
+    final completer = Completer<bool>();
+
+    final options = <String, dynamic>{
+      'mediaConstraints': <String, dynamic>{'audio': true, 'video': false},
+      'rtcOfferConstraints': <String, dynamic>{
+        'mandatory': <String, dynamic>{
+          'OfferToReceiveAudio': true,
+          'OfferToReceiveVideo': true,
+        },
+        'optional': <dynamic>[],
+      },
+      'pcConfig': <String, dynamic>{'iceServers': buildIceServers(), 'videoReady': true},
+      'videoReady': true,
+    };
+
+    final initiated = call.session.renegotiate(
+      options: options,
+      done: (response) {
+        final status = response?.status_code;
+        _log('[RTC Diagnostics] SIP renegotiation response received: status=$status');
+        if (!completer.isCompleted) {
+          final is2xx = status != null && status >= 200 && status < 300;
+          if (!is2xx) {
+            completer.complete(false);
+            return;
+          }
+          if (!voiceOnly) {
+            final body = response?.body ?? '';
+            final hasVideo = body.contains('m=video') && !RegExp(r'm=video 0\b').hasMatch(body);
+            if (!hasVideo) {
+              _log('[RTC Diagnostics] SIP renegotiation 200 OK did not accept video (answer was audio-only)');
+              completer.complete(false);
+              return;
+            }
+          }
+          completer.complete(true);
+        }
+      },
+    );
+
+    if (!initiated) {
+      _log('[RTC Diagnostics] SIP renegotiation rejected by RTCSession');
+      return false;
+    }
+
+    try {
+      return await completer.future.timeout(
+        const Duration(seconds: 8),
+        onTimeout: () {
+          _log('[RTC Diagnostics] SIP renegotiation timed out');
+          return false;
+        },
+      );
+    } catch (e) {
+      _log('[RTC Diagnostics] SIP renegotiation error: $e');
+      return false;
+    }
+  }
+
   @override
-  void onNewReinvite(ReInvite event) {}
+  void onNewReinvite(ReInvite event) {
+    final hasAudio = event.hasAudio ?? false;
+    bool hasVideo = false;
+    if (event.sdp != null) {
+      hasVideo = isRemoteVideoActiveInParsedSdp(event.sdp);
+    } else {
+      hasVideo = event.hasVideo ?? false;
+    }
+    _log('[RTC Diagnostics] Incoming re-INVITE received: hasAudio=$hasAudio, hasVideo=$hasVideo');
+    try {
+      event.accept?.call({});
+      _log('[RTC Diagnostics] Incoming re-INVITE accepted');
+      onRemoteReinviteAccepted?.call(hasVideo: hasVideo);
+    } catch (e) {
+      _log('[RTC Diagnostics] Error accepting re-INVITE: $e');
+    }
+  }
 
   String _formatCallError(dynamic cause) {
     if (cause == null) return 'Call failed';
@@ -524,6 +793,19 @@ class RelaySipAdapter implements SipUaHelperListener {
       _log('[RTC Diagnostics] PeerConnection State: ${state.name}');
       origConnectionState?.call(state);
     };
+
+    _logLocalSdpCandidates(pc);
+    pc.getTransceivers().then((transceivers) {
+      for (final t in transceivers) {
+        if (t.sender.track?.kind == 'video' || t.receiver.track?.kind == 'video') {
+          t.getDirection().then((dir) {
+            final dirStr = typeRtpTransceiverDirectionToString[dir] ?? 'recvonly';
+            _log('[RTC Diagnostics] Video-ready transceiver created: direction=$dirStr');
+          });
+          break;
+        }
+      }
+    }).catchError((_) {});
   }
 
   void _startVideoDiagnostics(RTCPeerConnection pc) {
@@ -599,10 +881,16 @@ class RelaySipAdapter implements SipUaHelperListener {
     try {
       final desc = await pc.getLocalDescription();
       if (desc?.sdp != null) {
+        final sdp = desc!.sdp!;
+        if (sdp.contains('m=video') && !RegExp(r'm=video 0\b').hasMatch(sdp)) {
+          if (_activeCall?.voiceOnly == true) {
+            _log('[RTC Diagnostics] Initial audio SDP contains dormant video');
+          }
+        }
         final matches = RegExp(
           r'a=candidate:.*\btyp\s+(\w+).*?\b(udp|tcp)\b',
           caseSensitive: false,
-        ).allMatches(desc!.sdp!);
+        ).allMatches(sdp);
         for (final m in matches) {
           final typ = m.group(1);
           final proto = m.group(2)?.toUpperCase() ?? 'UDP';

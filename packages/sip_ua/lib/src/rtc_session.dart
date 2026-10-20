@@ -635,10 +635,10 @@ class RTCSession extends EventManager implements Owner {
     if (stream != null) {
       switch (sdpSemantics) {
         case 'unified-plan':
-          stream.getTracks().forEach((MediaStreamTrack track) async {
-            RTCRtpSender sender = await _connection!.addTrack(track, stream!);
+          for (MediaStreamTrack track in stream.getTracks()) {
+            RTCRtpSender sender = await _connection!.addTrack(track, stream);
             _senders.add(sender);
-          });
+          }
           break;
         case 'plan-b':
           _connection!.addStream(stream);
@@ -646,6 +646,23 @@ class RTCSession extends EventManager implements Owner {
         default:
           logger.e('Unkown sdp semantics $sdpSemantics');
           throw Exceptions.NotReadyError('Unkown sdp semantics $sdpSemantics');
+      }
+    }
+
+    final bool isVideoReady =
+        pcConfig['videoReady'] == true || data?['videoReady'] == true;
+    if (isVideoReady && (stream == null || stream.getVideoTracks().isEmpty)) {
+      try {
+        await _connection!.addTransceiver(
+          kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+          init: RTCRtpTransceiverInit(
+            direction: TransceiverDirection.RecvOnly,
+          ),
+        );
+        logger.d(
+            '[RTC Diagnostics] Video-ready transceiver created: direction=recvonly');
+      } catch (e) {
+        logger.e('Failed to add dormant video transceiver: $e');
       }
     }
 
@@ -2030,12 +2047,24 @@ class RTCSession extends EventManager implements Owner {
     if (request.sdp == null && body.isNotEmpty) {
       request.sdp = sdp_transform.parse(body);
     }
-    List<dynamic> media = request.sdp?['media'];
-    for (Map<String, dynamic> m in media) {
-      if (m['type'] == 'audio') {
-        hasAudio = true;
-      } else if (m['type'] == 'video') {
-        hasVideo = true;
+    final List<dynamic>? media = request.sdp?['media'];
+    if (media != null) {
+      final sessionDir = request.sdp?['direction']?.toString().toLowerCase().trim();
+      for (final m in media) {
+        if (m is Map) {
+          final type = m['type'];
+          final port = m['port'];
+          final isPortZero = port == 0 || port == '0';
+          if (type == 'audio' && !isPortZero) {
+            hasAudio = true;
+          } else if (type == 'video' && !isPortZero) {
+            final mediaDir = m['direction']?.toString().toLowerCase().trim();
+            final effectiveDir = mediaDir ?? sessionDir ?? 'sendrecv';
+            if (effectiveDir == 'sendrecv' || effectiveDir == 'sendonly') {
+              hasVideo = true;
+            }
+          }
+        }
       }
     }
     emit(EventReInvite(
@@ -2118,15 +2147,9 @@ class RTCSession extends EventManager implements Owner {
     Map<String, dynamic>? sdp = request.parseSDP();
 
     bool hold = false;
-    bool upgradeToVideo = false;
     if (sdp != null) {
       List<dynamic> mediaList = sdp['media'];
 
-      // Loop media list items for video upgrade
-      for (Map<String, dynamic> media in mediaList) {
-        if (holdMediaTypes.indexOf(media['type']) == -1) continue;
-        if (media['type'] == 'video') upgradeToVideo = true;
-      }
       // Loop media list items for hold
       for (Map<String, dynamic> media in mediaList) {
         if (holdMediaTypes.indexOf(media['type']) == -1) continue;
@@ -2138,51 +2161,6 @@ class RTCSession extends EventManager implements Owner {
         else {
           hold = false;
         }
-      }
-    }
-
-    if (upgradeToVideo) {
-      Map<String, dynamic> mediaConstraints = <String, dynamic>{
-        'audio': true,
-        'video': <String, dynamic>{
-          'mandatory': <String, dynamic>{
-            'minWidth': '640',
-            'minHeight': '480',
-            'minFrameRate': '30',
-          },
-          'facingMode': 'user',
-        }
-      };
-      bool hasCamera = false;
-      try {
-        List<MediaDeviceInfo> devices =
-            await navigator.mediaDevices.enumerateDevices();
-        for (MediaDeviceInfo device in devices) {
-          if (device.kind == 'videoinput') hasCamera = true;
-        }
-      } catch (e) {
-        logger.w('Failed to enumerate devices: $e');
-      }
-      if (hasCamera) {
-        MediaStream localStream =
-            await navigator.mediaDevices.getUserMedia(mediaConstraints);
-        if (localStream.getVideoTracks().isEmpty) {
-          logger.w(
-              'Remote wants to upgrade to video but failed to get local video');
-        }
-        for (MediaStreamTrack track in localStream.getTracks()) {
-          if (track.kind == 'video') {
-            _connection!.addTrack(track, localStream);
-            _localMediaStream?.addTrack(track);
-          }
-        }
-        emit(EventStream(
-            session: this,
-            originator: Originator.local,
-            stream: _localMediaStream));
-      } else {
-        logger.w(
-            'Remote wants to upgrade to video but no camera available to send');
       }
     }
 
@@ -2479,10 +2457,10 @@ class RTCSession extends EventManager implements Owner {
     if (stream != null) {
       switch (sdpSemantics) {
         case 'unified-plan':
-          stream.getTracks().forEach((MediaStreamTrack track) async {
-            RTCRtpSender sender = await _connection!.addTrack(track, stream!);
+          for (MediaStreamTrack track in stream.getTracks()) {
+            RTCRtpSender sender = await _connection!.addTrack(track, stream);
             _senders.add(sender);
-          });
+          }
           break;
         case 'plan-b':
           _connection!.addStream(stream);
@@ -2493,6 +2471,23 @@ class RTCSession extends EventManager implements Owner {
       }
     }
 
+    final bool isVideoReady =
+        pcConfig['videoReady'] == true || data?['videoReady'] == true;
+    if (isVideoReady && (stream == null || stream.getVideoTracks().isEmpty)) {
+      try {
+        await _connection!.addTransceiver(
+          kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+          init: RTCRtpTransceiverInit(
+            direction: TransceiverDirection.RecvOnly,
+          ),
+        );
+        logger.d(
+            '[RTC Diagnostics] Video-ready transceiver created: direction=recvonly');
+      } catch (e) {
+        logger.e('Failed to add dormant video transceiver: $e');
+      }
+    }
+
     // TODO(cloudwebrtc): should this be triggered here?
     _connecting(_request);
     try {
@@ -2500,6 +2495,11 @@ class RTCSession extends EventManager implements Owner {
           await _createLocalDescription(SdpType.offer, rtcOfferConstraints);
       if (_is_canceled || _state == RtcSessionState.terminated) {
         throw Exceptions.InvalidStateError('terminated');
+      }
+
+      if (desc.sdp?.contains('m=video') == true &&
+          (stream == null || stream.getVideoTracks().isEmpty)) {
+        logger.d('[RTC Diagnostics] Initial audio SDP contains dormant video');
       }
 
       _request.body = desc.sdp;

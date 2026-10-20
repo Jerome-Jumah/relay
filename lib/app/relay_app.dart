@@ -2,9 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:relay/app/relay_router.dart';
 import 'package:relay/app/theme/relay_theme.dart';
-import 'package:relay/features/call/call_presentation.dart';
 import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/call/models/call_state_data.dart';
+import 'package:relay/features/call/models/requested_call_mode.dart';
 import 'package:relay/features/call/providers/call_controller.dart';
 import 'package:relay/features/settings/providers/theme_mode_provider.dart';
 
@@ -29,8 +29,8 @@ class _RelayAppState extends ConsumerState<RelayApp> {
     ref.listen<CallStateData>(callControllerProvider, (previous, next) {
       if (next.session.lifecycle == CallLifecycle.incoming &&
           previous?.session.lifecycle != CallLifecycle.incoming) {
-        final hasVideo = next.presentation == CallPresentation.video;
-        _router.push(hasVideo ? '/incoming-call?video=1' : '/incoming-call');
+        final isVideo = next.requestedCallMode == RequestedCallMode.video;
+        _router.push(isVideo ? '/incoming-call?video=1' : '/incoming-call');
       }
     });
 

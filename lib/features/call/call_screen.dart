@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,7 +34,6 @@ class CallScreen extends ConsumerStatefulWidget {
 }
 
 class _CallScreenState extends ConsumerState<CallScreen> {
-  late CallPresentation _presentation = widget.initialPresentation;
   CallPresentation? _presentationBeforeSharing;
 
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
@@ -60,20 +60,22 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         _renderersInitialized = true;
       });
       _syncStreams();
+      if (ref.read(callControllerProvider).localVideoActive) {
+        final local = ref.read(callControllerProvider.notifier).localStream;
+        _localRenderer.srcObject = local;
+        developer.log('[RelayCallUI] localRenderer.srcObject assigned on init: id=${local?.id}', name: 'relay.call');
+      }
     }
   }
 
-  void _syncStreams() {
+  void _syncStreams({bool force = false}) {
     if (!_renderersInitialized) return;
     final controller = ref.read(callControllerProvider.notifier);
-    final local = controller.localStream;
     final remote = controller.remoteStream;
 
-    if (_localRenderer.srcObject != local) {
-      _localRenderer.srcObject = local;
-    }
-    if (_remoteRenderer.srcObject != remote) {
+    if (_remoteRenderer.srcObject != remote || force) {
       _remoteRenderer.srcObject = remote;
+      developer.log('[RelayCallUI] remoteRenderer.srcObject assigned: id=${remote?.id}', name: 'relay.call');
     }
   }
 
@@ -90,30 +92,34 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   void _startScreenShare() {
     HapticFeedback.mediumImpact();
     setState(() {
-      _presentationBeforeSharing = _presentation;
-      _presentation = CallPresentation.screenShare;
+      _presentationBeforeSharing = ref.read(callControllerProvider).presentation;
     });
   }
 
   void _stopScreenShare() {
     setState(() {
-      _presentation = _presentationBeforeSharing ?? CallPresentation.audio;
       _presentationBeforeSharing = null;
     });
   }
 
-  void _switchToVideo() {
+  Future<void> _switchToVideo() async {
+    final callState = ref.read(callControllerProvider);
+    if (callState.isVideoUpgradeInProgress) return;
     HapticFeedback.mediumImpact();
-    setState(() {
-      _presentation = CallPresentation.video;
-    });
+    final success = await ref.read(callControllerProvider.notifier).upgradeToVideo();
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not switch to video. Audio call continues.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
-  void _switchToAudio() {
+  Future<void> _switchToAudio() async {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _presentation = CallPresentation.audio;
-    });
+    await ref.read(callControllerProvider.notifier).downgradeToAudio();
   }
 
   Future<void> _toggleCamera() async {
@@ -134,9 +140,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   }
 
   void _showMore() {
+    final callState = ref.read(callControllerProvider);
+    final effectivePresentation = _presentationBeforeSharing != null
+        ? CallPresentation.screenShare
+        : callState.presentation;
     CallMoreSheet.show(
       context,
-      presentation: _presentation,
+      presentation: effectivePresentation,
       onStartScreenShare: _startScreenShare,
       onStopScreenShare: _stopScreenShare,
       onSwitchToAudio: _switchToAudio,
@@ -161,7 +171,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         }
         return;
       }
-      _syncStreams();
+
+      final wasLocalActive = previous?.localVideoActive ?? false;
+      final isLocalActive = next.localVideoActive;
+      if (!wasLocalActive && isLocalActive) {
+        final local = ref.read(callControllerProvider.notifier).localStream;
+        _localRenderer.srcObject = local;
+        developer.log('[RelayCallUI] localRenderer.srcObject bound: id=${local?.id}', name: 'relay.call');
+      } else if (wasLocalActive && !isLocalActive) {
+        _localRenderer.srcObject = null;
+        developer.log('[RelayCallUI] localRenderer.srcObject cleared on downgrade', name: 'relay.call');
+      }
+
+      final remoteBecameActive = previous?.remoteVideoActive != true && next.remoteVideoActive;
+      _syncStreams(force: remoteBecameActive);
     });
 
     final callState = ref.watch(callControllerProvider);
@@ -175,13 +198,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final timer = callState.session.formattedDuration;
     final muted = callState.isMuted;
     final speaker = callState.isSpeaker;
-    final camera = callState.isCameraEnabled;
+    final camera = callState.isCameraEnabled && callState.localVideoActive;
     final isFrontCamera = callState.isFrontCamera;
     final flipped = !isFrontCamera;
 
-    final effectivePresentation = _presentationBeforeSharing == null && widget.initialPresentation == CallPresentation.audio && callState.presentation == CallPresentation.video
-        ? CallPresentation.video
-        : _presentation;
+    final effectivePresentation = _presentationBeforeSharing != null
+        ? CallPresentation.screenShare
+        : callState.presentation;
+
+    developer.log(
+      '[RelayCallUI] effectivePresentation=$effectivePresentation remoteVideoActive=${callState.remoteVideoActive} localVideoActive=${callState.localVideoActive}',
+      name: 'relay.call',
+    );
 
     return CallLayout(
       edgeToEdge: true,
@@ -198,7 +226,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         isFrontCamera: isFrontCamera,
         localRenderer: _renderersInitialized ? _localRenderer : null,
         remoteRenderer: _renderersInitialized ? _remoteRenderer : null,
-        hasRemoteVideo: callState.remoteVideoTrackPresent,
+        hasRemoteVideo: callState.remoteVideoActive,
         controlsVisible: controlsVisible,
         onToggleControls: () => setState(() => controlsVisible = !controlsVisible),
         onToggleMute: () => ref.read(callControllerProvider.notifier).toggleMute(),

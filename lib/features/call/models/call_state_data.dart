@@ -1,5 +1,6 @@
 import 'package:relay/features/call/call_presentation.dart';
 import 'package:relay/features/call/models/call_session.dart';
+import 'package:relay/features/call/models/requested_call_mode.dart';
 
 class CallStateData {
   const CallStateData({
@@ -9,8 +10,13 @@ class CallStateData {
     this.presentation = CallPresentation.audio,
     this.localVideoTrackPresent = false,
     this.remoteVideoTrackPresent = false,
-    this.isCameraEnabled = true,
+    this.isCameraEnabled = false,
     this.isFrontCamera = true,
+    this.isVideoUpgradeInProgress = false,
+    this.videoCapabilityNegotiated = false,
+    this.localVideoActive = false,
+    this.remoteVideoActive = false,
+    this.requestedCallMode = RequestedCallMode.audio,
   });
 
   final CallSession session;
@@ -21,6 +27,11 @@ class CallStateData {
   final bool remoteVideoTrackPresent;
   final bool isCameraEnabled;
   final bool isFrontCamera;
+  final bool isVideoUpgradeInProgress;
+  final bool videoCapabilityNegotiated;
+  final bool localVideoActive;
+  final bool remoteVideoActive;
+  final RequestedCallMode requestedCallMode;
 
   CallStateData copyWith({
     CallSession? session,
@@ -31,6 +42,11 @@ class CallStateData {
     bool? remoteVideoTrackPresent,
     bool? isCameraEnabled,
     bool? isFrontCamera,
+    bool? isVideoUpgradeInProgress,
+    bool? videoCapabilityNegotiated,
+    bool? localVideoActive,
+    bool? remoteVideoActive,
+    RequestedCallMode? requestedCallMode,
   }) {
     return CallStateData(
       session: session ?? this.session,
@@ -41,6 +57,11 @@ class CallStateData {
       remoteVideoTrackPresent: remoteVideoTrackPresent ?? this.remoteVideoTrackPresent,
       isCameraEnabled: isCameraEnabled ?? this.isCameraEnabled,
       isFrontCamera: isFrontCamera ?? this.isFrontCamera,
+      isVideoUpgradeInProgress: isVideoUpgradeInProgress ?? this.isVideoUpgradeInProgress,
+      videoCapabilityNegotiated: videoCapabilityNegotiated ?? this.videoCapabilityNegotiated,
+      localVideoActive: localVideoActive ?? this.localVideoActive,
+      remoteVideoActive: remoteVideoActive ?? this.remoteVideoActive,
+      requestedCallMode: requestedCallMode ?? this.requestedCallMode,
     );
   }
 
@@ -56,7 +77,12 @@ class CallStateData {
           localVideoTrackPresent == other.localVideoTrackPresent &&
           remoteVideoTrackPresent == other.remoteVideoTrackPresent &&
           isCameraEnabled == other.isCameraEnabled &&
-          isFrontCamera == other.isFrontCamera;
+          isFrontCamera == other.isFrontCamera &&
+          isVideoUpgradeInProgress == other.isVideoUpgradeInProgress &&
+          videoCapabilityNegotiated == other.videoCapabilityNegotiated &&
+          localVideoActive == other.localVideoActive &&
+          remoteVideoActive == other.remoteVideoActive &&
+          requestedCallMode == other.requestedCallMode;
 
   @override
   int get hashCode =>
@@ -67,9 +93,14 @@ class CallStateData {
       localVideoTrackPresent.hashCode ^
       remoteVideoTrackPresent.hashCode ^
       isCameraEnabled.hashCode ^
-      isFrontCamera.hashCode;
+      isFrontCamera.hashCode ^
+      isVideoUpgradeInProgress.hashCode ^
+      videoCapabilityNegotiated.hashCode ^
+      localVideoActive.hashCode ^
+      remoteVideoActive.hashCode ^
+      requestedCallMode.hashCode;
 
   @override
   String toString() =>
-      'CallStateData(session: $session, isMuted: $isMuted, isSpeaker: $isSpeaker, presentation: $presentation, localVideoTrackPresent: $localVideoTrackPresent, remoteVideoTrackPresent: $remoteVideoTrackPresent, isCameraEnabled: $isCameraEnabled, isFrontCamera: $isFrontCamera)';
+      'CallStateData(session: $session, isMuted: $isMuted, isSpeaker: $isSpeaker, presentation: $presentation, localVideoTrackPresent: $localVideoTrackPresent, remoteVideoTrackPresent: $remoteVideoTrackPresent, isCameraEnabled: $isCameraEnabled, isFrontCamera: $isFrontCamera, isVideoUpgradeInProgress: $isVideoUpgradeInProgress, videoCapabilityNegotiated: $videoCapabilityNegotiated, localVideoActive: $localVideoActive, remoteVideoActive: $remoteVideoActive, requestedCallMode: $requestedCallMode)';
 }

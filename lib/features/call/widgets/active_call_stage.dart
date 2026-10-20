@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:cue/cue.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:material_ui/material_ui.dart';
@@ -9,6 +11,7 @@ import 'package:relay/features/call/widgets/audio_call_content.dart';
 import 'package:relay/features/call/widgets/call_controls.dart';
 import 'package:relay/features/call/widgets/call_header.dart';
 import 'package:relay/features/call/widgets/local_video_preview.dart';
+import 'package:relay/features/call/widgets/mock_video_surface.dart';
 import 'package:relay/features/call/widgets/screen_share_content.dart';
 import 'package:relay/features/call/widgets/video_call_content.dart';
 
@@ -75,18 +78,21 @@ class ActiveCallStage extends StatelessWidget {
     final isVideo = basePresentation == CallPresentation.video;
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
 
+    developer.log(
+      '[RelayCallUI] presentation=$presentation basePresentation=$basePresentation isVideo=$isVideo hasRemoteVideo=$hasRemoteVideo',
+      name: 'relay.call',
+    );
+
     return Cue.onToggle(
       toggled: isSharing,
       motion: .smooth(),
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Positioned.fill(
-            child: Cue.onToggle(
-              toggled: isVideo,
-              motion: .smooth(),
+          if (isVideo)
+            Positioned.fill(
               child: IgnorePointer(
-                ignoring: !isVideo || isSharing,
+                ignoring: isSharing,
                 child: VideoCallContent(
                   remoteRenderer: remoteRenderer,
                   hasRemoteVideo: hasRemoteVideo,
@@ -94,11 +100,10 @@ class ActiveCallStage extends StatelessWidget {
                   flipped: flipped,
                   onToggleControls: onToggleControls,
                   onToggleFlip: onToggleFlip,
-                  fallback: AudioCallContent(peer: peer, status: status, timer: timer, muted: muted),
+                  fallback: const MockVideoSurface(cameraOff: true),
                 ),
               ),
             ),
-          ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md, vertical: RelaySpacing.sm + 4),
@@ -161,7 +166,7 @@ class ActiveCallStage extends StatelessWidget {
               ),
             ),
           ),
-          if (isVideo)
+          if (isVideo && camera)
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(right: RelaySpacing.md, bottom: 110.0),
