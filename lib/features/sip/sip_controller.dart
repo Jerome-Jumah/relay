@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:relay/features/rtc_lab/models/rtc_lab_event.dart';
+import 'package:relay/features/rtc_lab/providers/rtc_lab_timeline.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
 import 'package:relay/features/sip/relay_sip_adapter.dart';
@@ -19,6 +21,18 @@ class SipController extends Notifier<SipRegistrationState> {
 
     _adapter.onStatusChanged = (status, {errorMessage}) {
       state = state.copyWith(status: status, extension: _currentConfig.extension, errorMessage: errorMessage);
+      final title = switch (status) {
+        SipRegistrationStatus.registered => 'SIP Registered (${_currentConfig.extension})',
+        SipRegistrationStatus.connecting => 'SIP Connecting…',
+        SipRegistrationStatus.failed => 'SIP Registration Failed',
+        SipRegistrationStatus.disconnected => 'SIP Disconnected',
+        SipRegistrationStatus.idle => 'SIP Idle',
+      };
+      ref.read(rtcLabTimelineProvider.notifier).record(
+        category: RtcLabEventCategory.sip,
+        title: title,
+        detail: errorMessage,
+      );
     };
 
     ref.onDispose(() {

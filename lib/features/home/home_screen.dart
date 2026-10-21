@@ -53,6 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!granted) {
         if (mounted) {
           final status = await permissions.microphoneStatus();
+          if (!mounted) return;
           if (status.isDenied) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(const SnackBar(content: Text('Microphone permission is required to make calls.')));
@@ -81,6 +82,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!micGranted) {
         if (mounted) {
           final status = await permissions.microphoneStatus();
+          if (!mounted) return;
           if (status.isDenied) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(const SnackBar(content: Text('Microphone permission is required to make calls.')));
@@ -94,6 +96,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!camGranted) {
         if (mounted) {
           final status = await permissions.cameraStatus();
+          if (!mounted) return;
           if (status.isDenied) {
             ScaffoldMessenger.of(context)
                 .showSnackBar(const SnackBar(content: Text('Camera permission is required for video calls.')));

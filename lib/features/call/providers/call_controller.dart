@@ -10,6 +10,8 @@ import 'package:relay/features/call/models/call_session.dart';
 import 'package:relay/features/call/models/call_state_data.dart';
 import 'package:relay/features/call/models/requested_call_mode.dart';
 import 'package:relay/features/call/services/relay_screen_share_service.dart';
+import 'package:relay/features/rtc_lab/models/rtc_lab_event.dart';
+import 'package:relay/features/rtc_lab/providers/rtc_lab_timeline.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/sip_controller.dart';
 import 'package:relay/shared/permissions/relay_permissions.dart';
@@ -167,7 +169,19 @@ class CallController extends Notifier<CallStateData> {
       }
 
       _log('[RelayCallUI] remoteVideoActive=$newRemoteVideoActive presentation=$nextPresentation');
+      ref.read(rtcLabTimelineProvider.notifier).record(
+        category: RtcLabEventCategory.media,
+        title: hasVideo ? 'Remote Video Enabled' : 'Remote Video Disabled',
+      );
       state = state.copyWith(remoteVideoActive: newRemoteVideoActive, presentation: nextPresentation);
+    };
+
+    adapter.onDiagnosticEvent = (category, title, {detail}) {
+      ref.read(rtcLabTimelineProvider.notifier).record(
+        category: category,
+        title: title,
+        detail: detail,
+      );
     };
 
     ref.onDispose(() {
@@ -264,6 +278,12 @@ class CallController extends Notifier<CallStateData> {
       );
       return false;
     }
+
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.call,
+      title: 'Outgoing Audio Call Started',
+      detail: 'Peer: $peer',
+    );
 
     return true;
   }
@@ -378,6 +398,12 @@ class CallController extends Notifier<CallStateData> {
       return false;
     }
 
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.call,
+      title: 'Outgoing Video Call Started',
+      detail: 'Peer: $peer',
+    );
+
     return true;
   }
 
@@ -398,6 +424,11 @@ class CallController extends Notifier<CallStateData> {
 
     final adapter = ref.read(sipAdapterProvider);
     await adapter.answerCall(mediaStream: _localStream);
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.call,
+      title: 'Call Answered (Audio)',
+      detail: 'Peer: ${state.session.peer}',
+    );
     state = state.copyWith(
       session: state.session.copyWith(lifecycle: CallLifecycle.connecting),
       localVideoActive: false,
@@ -439,6 +470,11 @@ class CallController extends Notifier<CallStateData> {
 
     final adapter = ref.read(sipAdapterProvider);
     await adapter.answerVideoCall(mediaStream: _localStream);
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.call,
+      title: 'Call Answered (Video)',
+      detail: 'Peer: ${state.session.peer}',
+    );
     state = state.copyWith(
       session: state.session.copyWith(lifecycle: CallLifecycle.connecting),
       presentation: CallPresentation.video,
@@ -457,6 +493,10 @@ class CallController extends Notifier<CallStateData> {
     final adapter = ref.read(sipAdapterProvider);
     await adapter.hangupCall();
     await _cleanupMedia();
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.call,
+      title: 'Call Declined / Ended',
+    );
     state = state.copyWith(
       session: state.session.copyWith(lifecycle: CallLifecycle.ended, endedAt: DateTime.now()),
     );
@@ -466,6 +506,10 @@ class CallController extends Notifier<CallStateData> {
     final adapter = ref.read(sipAdapterProvider);
     await adapter.hangupCall();
     await _cleanupMedia();
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.call,
+      title: 'Call Ended',
+    );
     state = state.copyWith(
       session: state.session.copyWith(lifecycle: CallLifecycle.ended, endedAt: DateTime.now()),
     );
@@ -606,6 +650,10 @@ class CallController extends Notifier<CallStateData> {
     }
 
     _log('[RTC Diagnostics] Video upgrade requested');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.media,
+      title: 'Video Upgrade Requested',
+    );
     _log('[RelayMedia] upgrade begin');
     _log('[RelayMedia] cachedVideoStream=${_cameraStream != null ? "non-null" : "null"}');
     _log('[RelayMedia] cachedVideoTracks=${_cameraStream?.getVideoTracks().length ?? 0}');
@@ -749,6 +797,10 @@ class CallController extends Notifier<CallStateData> {
 
     if (!renegSuccess) {
       _log('[RTC Diagnostics] Video upgrade renegotiation rejected / failed. Rolling back.');
+      ref.read(rtcLabTimelineProvider.notifier).record(
+        category: RtcLabEventCategory.media,
+        title: 'Video Upgrade Rejected',
+      );
       await videoTransceiver.sender.replaceTrack(null);
       await videoTransceiver.setDirection(TransceiverDirection.RecvOnly);
       _log('[RTC Diagnostics] Video transceiver direction changed: sendrecv -> recvonly');
@@ -780,6 +832,10 @@ class CallController extends Notifier<CallStateData> {
     }
 
     _log('[RTC Diagnostics] Video upgrade accepted');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.media,
+      title: 'Video Upgrade Accepted',
+    );
     try {
       Helper.setSpeakerphoneOn(true);
     } catch (_) {}
@@ -805,6 +861,10 @@ class CallController extends Notifier<CallStateData> {
     final adapter = ref.read(sipAdapterProvider);
     if (!state.session.isActive) return false;
     _log('[RTC Diagnostics] Video downgrade requested');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.media,
+      title: 'Video Downgrade Requested',
+    );
     _log('[RelayMedia] downgrade begin');
 
     // 1. Clear video sender track and return transceiver to dormant state
@@ -900,6 +960,10 @@ class CallController extends Notifier<CallStateData> {
     );
 
     _log('[RTC Diagnostics] Video downgrade completed: presentation=$nextPresentation');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.media,
+      title: 'Video Downgraded to Audio',
+    );
     return success;
   }
 
@@ -965,6 +1029,11 @@ class CallController extends Notifier<CallStateData> {
     _screenShareStream = displayStream;
     _log('[RelayShare] capture started: trackId=${displayTrack.id}');
     _log('[RelayShare] diagnostics: localVideoSource=$localVideoSource, trackId=${displayTrack.id}');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.share,
+      title: 'Screen Share Started',
+      detail: 'Track: ${displayTrack.id}',
+    );
 
     // Listen for OS or user termination of screen capture
     displayTrack.onEnded = () {
@@ -1006,6 +1075,10 @@ class CallController extends Notifier<CallStateData> {
 
     await videoTransceiver.sender.replaceTrack(displayTrack);
     _log('[RelayShare] sender replaced');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.share,
+      title: 'Sender Replaced with Display Track',
+    );
 
     // If starting from audio call, video transceiver was recvonly.
     // Transition to sendrecv and renegotiate the same SIP dialog.
@@ -1087,6 +1160,11 @@ class CallController extends Notifier<CallStateData> {
     _presentationBeforeSharing = null;
     _log('[RelayShare] capture ended');
     _log('[RelayShare] previous presentation restored: ${previousPresentation.name}');
+    ref.read(rtcLabTimelineProvider.notifier).record(
+      category: RtcLabEventCategory.share,
+      title: 'Screen Share Stopped',
+      detail: 'Restored: ${previousPresentation.name}',
+    );
 
     state = state.copyWith(
       presentation: previousPresentation,

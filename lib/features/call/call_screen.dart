@@ -80,8 +80,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   @override
   void dispose() {
     _ticker?.cancel();
-    _localRenderer.srcObject = null;
-    _remoteRenderer.srcObject = null;
+    if (_renderersInitialized) {
+      _localRenderer.srcObject = null;
+      _remoteRenderer.srcObject = null;
+    }
     _localRenderer.dispose();
     _remoteRenderer.dispose();
     super.dispose();

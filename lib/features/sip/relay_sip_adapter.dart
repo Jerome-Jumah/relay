@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/call/models/call_session.dart';
 import 'package:relay/features/call/models/requested_call_mode.dart';
+import 'package:relay/features/rtc_lab/models/rtc_lab_event.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
 import 'package:sip_ua/sip_ua.dart';
@@ -19,14 +20,11 @@ class RelaySipAdapter implements SipUaHelperListener {
 
   void Function(SipRegistrationStatus status, {String? errorMessage})? onStatusChanged;
 
-  void Function(
-    CallSession session, {
-    bool hasVideo,
-    bool videoCapability,
-    RequestedCallMode requestedCallMode,
-  })? onCallSessionChanged;
+  void Function(CallSession session, {bool hasVideo, bool videoCapability, RequestedCallMode requestedCallMode})?
+  onCallSessionChanged;
   void Function(MediaStream remoteStream)? onRemoteStreamAdded;
   void Function({required bool hasVideo})? onRemoteReinviteAccepted;
+  void Function(RtcLabEventCategory category, String title, {String? detail})? onDiagnosticEvent;
 
   Call? _activeCall;
   DateTime? _answeredAt;
@@ -118,22 +116,13 @@ class RelaySipAdapter implements SipUaHelperListener {
       headers: <String>['X-Relay-Call-Mode: audio'],
       customOptions: <String, dynamic>{
         'videoReady': true,
-        'pcConfig': <String, dynamic>{
-          'iceServers': iceServers,
-          'videoReady': true,
-        },
+        'pcConfig': <String, dynamic>{'iceServers': iceServers, 'videoReady': true},
         'rtcOfferConstraints': <String, dynamic>{
-          'mandatory': <String, dynamic>{
-            'OfferToReceiveAudio': true,
-            'OfferToReceiveVideo': true,
-          },
+          'mandatory': <String, dynamic>{'OfferToReceiveAudio': true, 'OfferToReceiveVideo': true},
           'optional': <dynamic>[],
         },
         'rtcAnswerConstraints': <String, dynamic>{
-          'mandatory': <String, dynamic>{
-            'OfferToReceiveAudio': true,
-            'OfferToReceiveVideo': true,
-          },
+          'mandatory': <String, dynamic>{'OfferToReceiveAudio': true, 'OfferToReceiveVideo': true},
           'optional': <dynamic>[],
         },
       },
@@ -173,10 +162,7 @@ class RelaySipAdapter implements SipUaHelperListener {
     options['pcConfig'] = pcConfig;
     options['videoReady'] = true;
     options['rtcAnswerConstraints'] = <String, dynamic>{
-      'mandatory': <String, dynamic>{
-        'OfferToReceiveAudio': true,
-        'OfferToReceiveVideo': true,
-      },
+      'mandatory': <String, dynamic>{'OfferToReceiveAudio': true, 'OfferToReceiveVideo': true},
       'optional': <dynamic>[],
     };
     _activeCall!.answer(options, mediaStream: mediaStream);
@@ -533,7 +519,7 @@ class RelaySipAdapter implements SipUaHelperListener {
         }
 
         final rawStr = req.toString();
-        final match = RegExp(r'(?i)x-relay-call-mode:\s*([a-zA-Z]+)').firstMatch(rawStr);
+        final match = RegExp(r'x-relay-call-mode:\s*([a-zA-Z]+)', caseSensitive: false).firstMatch(rawStr);
         if (match != null) {
           final mode = match.group(1)?.toLowerCase().trim();
           if (mode == 'video') return RequestedCallMode.video;
@@ -610,10 +596,7 @@ class RelaySipAdapter implements SipUaHelperListener {
     final options = <String, dynamic>{
       'mediaConstraints': <String, dynamic>{'audio': true, 'video': false},
       'rtcOfferConstraints': <String, dynamic>{
-        'mandatory': <String, dynamic>{
-          'OfferToReceiveAudio': true,
-          'OfferToReceiveVideo': true,
-        },
+        'mandatory': <String, dynamic>{'OfferToReceiveAudio': true, 'OfferToReceiveVideo': true},
         'optional': <dynamic>[],
       },
       'pcConfig': <String, dynamic>{'iceServers': buildIceServers(), 'videoReady': true},
@@ -765,6 +748,7 @@ class RelaySipAdapter implements SipUaHelperListener {
     final origIceConnection = pc.onIceConnectionState;
     pc.onIceConnectionState = (state) {
       _log('[RTC Diagnostics] ICE Connection State: ${state.name}');
+      onDiagnosticEvent?.call(RtcLabEventCategory.ice, 'ICE State: ${state.name}');
       if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
         if (!_selectedCandidatePairLogged) {
@@ -791,21 +775,25 @@ class RelaySipAdapter implements SipUaHelperListener {
     final origConnectionState = pc.onConnectionState;
     pc.onConnectionState = (state) {
       _log('[RTC Diagnostics] PeerConnection State: ${state.name}');
+      onDiagnosticEvent?.call(RtcLabEventCategory.ice, 'PeerConnection: ${state.name}');
       origConnectionState?.call(state);
     };
 
     _logLocalSdpCandidates(pc);
-    pc.getTransceivers().then((transceivers) {
-      for (final t in transceivers) {
-        if (t.sender.track?.kind == 'video' || t.receiver.track?.kind == 'video') {
-          t.getDirection().then((dir) {
-            final dirStr = typeRtpTransceiverDirectionToString[dir] ?? 'recvonly';
-            _log('[RTC Diagnostics] Video-ready transceiver created: direction=$dirStr');
-          });
-          break;
-        }
-      }
-    }).catchError((_) {});
+    pc
+        .getTransceivers()
+        .then((transceivers) {
+          for (final t in transceivers) {
+            if (t.sender.track?.kind == 'video' || t.receiver.track?.kind == 'video') {
+              t.getDirection().then((dir) {
+                final dirStr = typeRtpTransceiverDirectionToString[dir] ?? 'recvonly';
+                _log('[RTC Diagnostics] Video-ready transceiver created: direction=$dirStr');
+              });
+              break;
+            }
+          }
+        })
+        .catchError((_) {});
   }
 
   void _startVideoDiagnostics(RTCPeerConnection pc) {
@@ -887,10 +875,7 @@ class RelaySipAdapter implements SipUaHelperListener {
             _log('[RTC Diagnostics] Initial audio SDP contains dormant video');
           }
         }
-        final matches = RegExp(
-          r'a=candidate:.*\btyp\s+(\w+).*?\b(udp|tcp)\b',
-          caseSensitive: false,
-        ).allMatches(sdp);
+        final matches = RegExp(r'a=candidate:.*\btyp\s+(\w+).*?\b(udp|tcp)\b', caseSensitive: false).allMatches(sdp);
         for (final m in matches) {
           final typ = m.group(1);
           final proto = m.group(2)?.toUpperCase() ?? 'UDP';
@@ -903,31 +888,89 @@ class RelaySipAdapter implements SipUaHelperListener {
   Future<void> _logSelectedCandidatePair(RTCPeerConnection pc) async {
     try {
       final stats = await pc.getStats();
-      for (final report in stats) {
-        if (report.type == 'candidate-pair' &&
-            (report.values['state'] == 'succeeded' ||
-                report.values['nominated'] == true ||
-                report.values['selected'] == true)) {
-          final localCandId = report.values['localCandidateId'];
-          final remoteCandId = report.values['remoteCandidateId'];
 
-          String localType = 'unknown';
-          String remoteType = 'unknown';
-          final protocol = report.values['protocol']?.toString() ?? 'UDP';
+      // Precedence:
+      // A. transport.selectedCandidatePairId
+      // B. candidate-pair selected == true
+      // C. nominated == true AND state == "succeeded"
+      StatsReport? selectedReport;
 
-          for (final r in stats) {
-            if (r.id == localCandId) {
-              localType = r.values['candidateType']?.toString() ?? 'unknown';
-            }
-            if (r.id == remoteCandId) {
-              remoteType = r.values['candidateType']?.toString() ?? 'unknown';
-            }
+      // A. Check transport stats
+      String? transportPairId;
+      for (final r in stats) {
+        if (r.type == 'transport') {
+          final pid = r.values['selectedCandidatePairId']?.toString();
+          if (pid != null && pid.isNotEmpty) {
+            transportPairId = pid;
+            break;
           }
-
-          _log('[RTC Diagnostics] Selected candidate pair: local=$localType, remote=$remoteType ($protocol)');
-          return;
         }
       }
+
+      if (transportPairId != null) {
+        for (final r in stats) {
+          if (r.type == 'candidate-pair' && r.id == transportPairId) {
+            selectedReport = r;
+            break;
+          }
+        }
+      }
+
+      // B. candidate-pair selected == true
+      if (selectedReport == null) {
+        for (final r in stats) {
+          if (r.type == 'candidate-pair') {
+            final isSelected = r.values['selected'] == true || r.values['selected']?.toString().toLowerCase() == 'true';
+            if (isSelected) {
+              selectedReport = r;
+              break;
+            }
+          }
+        }
+      }
+
+      // C. nominated == true AND state == "succeeded"
+      if (selectedReport == null) {
+        for (final r in stats) {
+          if (r.type == 'candidate-pair') {
+            final isNominated =
+                r.values['nominated'] == true || r.values['nominated']?.toString().toLowerCase() == 'true';
+            final stateVal = r.values['state']?.toString().toLowerCase();
+            if (isNominated && stateVal == 'succeeded') {
+              selectedReport = r;
+              break;
+            }
+          }
+        }
+      }
+
+      if (selectedReport == null) {
+        _log('[RTC Diagnostics] No active selected candidate pair resolved yet');
+        return;
+      }
+
+      final localCandId = selectedReport.values['localCandidateId'];
+      final remoteCandId = selectedReport.values['remoteCandidateId'];
+
+      String localType = 'unknown';
+      String remoteType = 'unknown';
+      final protocol = selectedReport.values['protocol']?.toString() ?? 'UDP';
+
+      for (final r in stats) {
+        if (r.id == localCandId) {
+          localType = r.values['candidateType']?.toString() ?? 'unknown';
+        }
+        if (r.id == remoteCandId) {
+          remoteType = r.values['candidateType']?.toString() ?? 'unknown';
+        }
+      }
+
+      _log('[RTC Diagnostics] Selected candidate pair: local=$localType, remote=$remoteType ($protocol)');
+      onDiagnosticEvent?.call(
+        RtcLabEventCategory.ice,
+        'Selected Path: $localType → $remoteType ($protocol)',
+        detail: 'Local: $localType ($protocol), Remote: $remoteType',
+      );
     } catch (e) {
       _log('[RTC Diagnostics] Candidate pair lookup: $e');
     }

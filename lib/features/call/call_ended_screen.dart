@@ -23,8 +23,8 @@ class _CallEndedScreenState extends ConsumerState<CallEndedScreen> {
     super.initState();
     timer = Timer(const Duration(seconds: 4), () {
       if (mounted) {
-        ref.read(callControllerProvider.notifier).resetToIdle();
         context.go('/');
+        ref.read(callControllerProvider.notifier).resetToIdle();
       }
     });
   }
@@ -36,8 +36,8 @@ class _CallEndedScreenState extends ConsumerState<CallEndedScreen> {
   }
 
   void _backToHome() {
-    ref.read(callControllerProvider.notifier).resetToIdle();
     context.go('/');
+    ref.read(callControllerProvider.notifier).resetToIdle();
   }
 
   @override
