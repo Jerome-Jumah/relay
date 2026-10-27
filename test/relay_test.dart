@@ -215,4 +215,65 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     router.dispose();
   });
+
+  testWidgets('incoming call screen adheres to light theme', (tester) async {
+    final router = createRelayRouter(initialLocation: '/incoming-call');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          relayPermissionsProvider.overrideWithValue(const _TestPermissions()),
+          sipControllerProvider.overrideWith(_TestSipController.new),
+          callControllerProvider.overrideWith(_TestCallController.new),
+        ],
+        child: MaterialApp.router(
+          theme: RelayTheme.light,
+          darkTheme: RelayTheme.dark,
+          themeMode: ThemeMode.light,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, RelayTheme.light.colorScheme.surface);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    router.dispose();
+  });
+
+  testWidgets('settings screen displays app icon for relay, pubspec version, and github link', (tester) async {
+    final router = createRelayRouter(initialLocation: '/settings');
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          relayPermissionsProvider.overrideWithValue(const _TestPermissions()),
+          sipControllerProvider.overrideWith(_TestSipController.new),
+          callControllerProvider.overrideWith(_TestCallController.new),
+        ],
+        child: MaterialApp.router(theme: RelayTheme.light, routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final versionFinder = find.text('1.0.0 (1)');
+    await tester.scrollUntilVisible(versionFinder, 500);
+    expect(versionFinder, findsOneWidget);
+
+    final githubFinder = find.text('Jerome-Jumah/relay');
+    await tester.scrollUntilVisible(githubFinder, 500);
+    expect(githubFinder, findsOneWidget);
+
+    final relayTileFinder = find.widgetWithText(RelaySettingsTile, 'Relay');
+    await tester.scrollUntilVisible(relayTileFinder, 500);
+    expect(relayTileFinder, findsOneWidget);
+    expect(
+      find.descendant(of: relayTileFinder, matching: find.byType(Image)),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    router.dispose();
+  });
 }
