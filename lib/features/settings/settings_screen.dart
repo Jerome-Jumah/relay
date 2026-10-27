@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/settings/models/call_preferences.dart';
 import 'package:relay/features/settings/providers/call_preferences_provider.dart';
@@ -100,6 +101,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
     ),
   );
+
+  Future<void> _openGitHub() async {
+    const url = 'https://github.com/Jerome-Jumah/relay';
+    final uri = Uri.parse(url);
+    HapticFeedback.lightImpact();
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        information('GitHub', url);
+      }
+    } catch (_) {
+      if (mounted) {
+        information('GitHub', url);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +264,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
               title: 'About',
               children: [
                 RelaySettingsTile(
-                  icon: Icons.hub_outlined,
+                  leading: CircleAvatar(
+                    radius: 19,
+                    backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        semanticLabel: 'Relay app icon',
+                      ),
+                    ),
+                  ),
                   title: 'Relay',
                   onTap: () => information(
                     'Relay',
@@ -271,11 +298,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 RelaySettingsTile(
                   icon: Icons.code_rounded,
                   title: 'GitHub',
+                  value: 'Jerome-Jumah/relay',
                   divider: false,
-                  onTap: () => information(
-                    'GitHub',
-                    'Relay is a learning and reference application. The project source link will be available here.',
-                  ),
+                  onTap: _openGitHub,
                 ),
               ],
             ),

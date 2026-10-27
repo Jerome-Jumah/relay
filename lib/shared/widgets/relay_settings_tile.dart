@@ -5,15 +5,17 @@ import 'package:relay/app/theme/relay_tokens.dart';
 class RelaySettingsTile extends StatelessWidget {
   const RelaySettingsTile({
     super.key,
-    required this.icon,
+    this.icon,
+    this.leading,
     required this.title,
     this.value,
     this.trailing,
     this.onTap,
     this.divider = true,
-  });
+  }) : assert(icon != null || leading != null, 'Either icon or leading must be provided');
 
-  final IconData icon;
+  final IconData? icon;
+  final Widget? leading;
   final String title;
   final String? value;
   final Widget? trailing;
@@ -23,16 +25,21 @@ class RelaySettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final leadingWidget = leading ??
+        (icon != null
+            ? CircleAvatar(
+                radius: 19,
+                backgroundColor: colors.surfaceContainer,
+                child: Icon(icon, size: 21, color: colors.onSurface),
+              )
+            : null);
+
     return Column(
       children: [
         ListTile(
           minTileHeight: RelaySizes.callControl,
           contentPadding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md, vertical: 2),
-          leading: CircleAvatar(
-            radius: 19,
-            backgroundColor: colors.surfaceContainer,
-            child: Icon(icon, size: 21, color: colors.onSurface),
-          ),
+          leading: leadingWidget,
           title: Text(title, style: const TextStyle(fontSize: 15)),
           trailing:
               trailing ??

@@ -45,7 +45,13 @@ class IncomingCallScreen extends ConsumerWidget {
                     const Spacer(flex: 2),
                     const CallFocal(),
                     const SizedBox(height: RelaySpacing.lg + 4),
-                    Text(peer, style: const TextStyle(fontSize: 38)),
+                    Text(
+                      peer,
+                      style: TextStyle(
+                        fontSize: 38,
+                        color: colors.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: RelaySpacing.sm + 4),
                     Text(
                       video ? 'Incoming video call' : 'Incoming call',
