@@ -50,6 +50,8 @@ class SipController extends Notifier<SipRegistrationState> {
       if (_currentConfig.isConfigured) {
         state = state.copyWith(status: SipRegistrationStatus.connecting, extension: _currentConfig.extension);
         await _adapter.register(_currentConfig);
+      } else {
+        state = state.copyWith(extension: _currentConfig.extension);
       }
     } catch (_) {
       state = state.copyWith(status: SipRegistrationStatus.failed, errorMessage: 'Failed to load configuration');

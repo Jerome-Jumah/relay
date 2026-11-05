@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/settings/models/call_preferences.dart';
 import 'package:relay/features/settings/providers/call_preferences_provider.dart';
 import 'package:relay/features/settings/providers/theme_mode_provider.dart';
 import 'package:relay/features/settings/widgets/theme_mode_selector.dart';
+import 'package:relay/features/sip/models/sip_registration_state.dart';
 import 'package:relay/features/sip/sip_controller.dart';
 import 'package:relay/shared/permissions/relay_permissions.dart';
 import 'package:relay/shared/widgets/relay_permission_sheet.dart';
@@ -101,22 +101,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Done'))],
     ),
   );
-
-  Future<void> _openGitHub() async {
-    const url = 'https://github.com/Jerome-Jumah/relay';
-    final uri = Uri.parse(url);
-    HapticFeedback.lightImpact();
-    try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched && mounted) {
-        information('GitHub', url);
-      }
-    } catch (_) {
-      if (mounted) {
-        information('GitHub', url);
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -241,20 +225,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 RelaySettingsTile(
                   icon: Icons.person_outline_rounded,
                   title: 'SIP account',
-                  value: sipState.displayLabel,
+                  value: sipState.extension,
+                  description: switch (sipState.status) {
+                    SipRegistrationStatus.registered => 'Connected',
+                    SipRegistrationStatus.connecting => 'Connecting…',
+                    SipRegistrationStatus.failed => 'Registration failed',
+                    SipRegistrationStatus.idle || SipRegistrationStatus.disconnected => 'Disconnected',
+                  },
                   onTap: () => context.push('/settings/sip-account'),
-                ),
-                RelaySettingsTile(
-                  icon: Icons.dns_outlined,
-                  title: 'ICE servers',
-                  onTap: () => information(
-                    'ICE servers',
-                    'STUN and TURN configuration will be available here. No server connection is active in this preview.',
-                  ),
                 ),
                 RelaySettingsTile(
                   icon: Icons.science_outlined,
                   title: 'RTC Lab',
+                  description: 'Live call diagnostics',
                   divider: false,
                   onTap: () => context.push('/rtc-lab'),
                 ),
@@ -294,13 +277,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                           : 'Version information is unavailable.',
                     ),
                   ),
-                ),
-                RelaySettingsTile(
-                  icon: Icons.code_rounded,
-                  title: 'GitHub',
-                  value: 'Jerome-Jumah/relay',
-                  divider: false,
-                  onTap: _openGitHub,
                 ),
               ],
             ),

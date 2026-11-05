@@ -129,6 +129,13 @@ class _SipAccountScreenState extends ConsumerState<SipAccountScreen> {
                     RelaySection(
                       title: 'Status',
                       children: [
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(RelaySpacing.md, RelaySpacing.sm, RelaySpacing.md, 0),
+                          child: Text(
+                            'Connection status indicates whether Relay is registered and ready to receive calls.',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
                         Padding(
                           padding: const EdgeInsets.all(RelaySpacing.md),
                           child: Row(
@@ -175,7 +182,7 @@ class _SipAccountScreenState extends ConsumerState<SipAccountScreen> {
                                 keyboardType: TextInputType.url,
                                 textInputAction: TextInputAction.next,
                                 decoration: InputDecoration(
-                                  labelText: 'Server',
+                                  labelText: 'WebSocket server',
                                   hintText: 'wss://sip.code4flare.com',
                                   prefixIcon: const Icon(Icons.dns_outlined),
                                   filled: false,

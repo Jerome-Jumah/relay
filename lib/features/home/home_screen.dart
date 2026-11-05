@@ -5,8 +5,10 @@ import 'package:material_ui/material_ui.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:relay/app/theme/relay_tokens.dart';
 import 'package:relay/features/call/providers/call_controller.dart';
+import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/home/widgets/home_action_card.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
+import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/sip_controller.dart';
 import 'package:relay/shared/permissions/relay_permissions.dart';
 import 'package:relay/shared/widgets/relay_permission_sheet.dart';
@@ -36,6 +38,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (peer.isEmpty) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Please enter a destination extension before calling.')));
+      return;
+    }
+
+    final config = ref.read(sipControllerProvider.notifier).currentConfig;
+    if (config.isConfigured && _isOwnDestination(peer, config)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You can't call your own account.")),
+      );
       return;
     }
 
@@ -116,10 +126,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     context.push(Uri(path: '/call', queryParameters: {'mode': mode}).toString());
   }
 
+  bool _isOwnDestination(String destination, SipAccountConfig config) {
+    final entered = destination.trim();
+    final ownExtension = config.extension.trim();
+    if (ownExtension.isEmpty) return false;
+
+    String userPart(String value) {
+      final withoutScheme = value.replaceFirst(RegExp(r'^sips?:', caseSensitive: false), '');
+      return withoutScheme.split('@').first.trim();
+    }
+
+    final enteredUser = userPart(entered);
+    final ownUser = userPart(ownExtension);
+    if (enteredUser.isEmpty || ownUser.isEmpty) return false;
+    if (enteredUser.toLowerCase() == ownUser.toLowerCase()) return true;
+
+    final enteredUri = entered.toLowerCase();
+    final ownUri = config.sipUri.toLowerCase();
+    return enteredUri == ownUri;
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final registrationState = ref.watch(sipControllerProvider);
+    final sipConfig = ref.watch(sipControllerProvider.notifier).currentConfig;
+    final callState = ref.watch(callControllerProvider);
+    final hasActiveCall = !callState.session.isEnded &&
+        (callState.session.isActive || callState.session.isConnecting ||
+            callState.session.lifecycle == CallLifecycle.incoming);
     final statusColor = switch (registrationState.status) {
       SipRegistrationStatus.registered => colors.tertiary,
       SipRegistrationStatus.connecting => colors.primary,
@@ -162,15 +197,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ],
                       ),
                       SizedBox(height: constraints.maxHeight < 700 ? 40 : 66),
-                      const Text(
-                        'Ready to\nconnect',
-                        style: TextStyle(fontSize: 46, height: 1.08, fontWeight: FontWeight.w600, letterSpacing: -2),
+                      Text(
+                        registrationState.isRegistered
+                            ? 'Ready to connect.'
+                            : sipConfig.isConfigured
+                            ? "You're offline."
+                            : 'Set up Relay.',
+                        style: const TextStyle(
+                          fontSize: 46,
+                          height: 1.08,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -2,
+                        ),
                       ),
                       const SizedBox(height: RelaySpacing.md + 2),
                       Text(
-                        'Start an audio call or video call.',
+                        registrationState.isRegistered
+                            ? 'Start an audio call or video call.'
+                            : sipConfig.isConfigured
+                            ? 'Relay is disconnected from your account.'
+                            : 'Connect your account to start making and receiving calls.',
                         style: TextStyle(fontSize: 17, height: 1.5, color: colors.onSurfaceVariant),
                       ),
+                      if (!registrationState.isRegistered) ...[
+                        const SizedBox(height: RelaySpacing.xl - 2),
+                        if (!sipConfig.isConfigured)
+                          FilledButton.icon(
+                            onPressed: () => context.push('/settings/sip-account'),
+                            icon: const Icon(Icons.person_add_alt_1_rounded),
+                            label: const Text('Set up account'),
+                            style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 52)),
+                          )
+                        else ...[
+                          RelayStatusPill(registrationState.homeStatusLabel, color: statusColor),
+                          const SizedBox(height: RelaySpacing.sm),
+                          OutlinedButton.icon(
+                            onPressed: () => context.push('/settings/sip-account'),
+                            icon: const Icon(Icons.manage_accounts_outlined),
+                            label: const Text('Account settings'),
+                            style: OutlinedButton.styleFrom(minimumSize: const Size(double.infinity, 52)),
+                          ),
+                        ],
+                      ],
+                      if (hasActiveCall) ...[
+                        const SizedBox(height: RelaySpacing.md),
+                        FilledButton.icon(
+                          onPressed: () => context.push('/call'),
+                          icon: const Icon(Icons.call_rounded),
+                          label: const Text('Return to call'),
+                          style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 52)),
+                        ),
+                        const SizedBox(height: RelaySpacing.md),
+                      ],
                       const SizedBox(height: RelaySpacing.xl - 2),
                       TextField(
                         controller: destination,
@@ -180,8 +258,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         style: const TextStyle(fontSize: 20),
                         decoration: InputDecoration(
                           counterText: '',
-                          labelText: 'Destination',
+                          labelText: 'Contact ID',
                           hintText: 'e.g. 1002',
+                          helper: const Text('Enter an extension, e.g. 1002.', softWrap: true),
                           floatingLabelBehavior: FloatingLabelBehavior.never,
                           prefixIcon: const Icon(Icons.tag_rounded),
                           suffixIcon: ValueListenableBuilder<TextEditingValue>(
@@ -219,7 +298,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         icon: Icons.call_rounded,
                         background: colors.primary,
                         foreground: colors.onPrimary,
-                        onTap: () => start('audio'),
+                        onTap: registrationState.isRegistered
+                            ? () => start('audio')
+                            : () => context.push('/settings/sip-account'),
                       ),
                       const SizedBox(height: RelaySpacing.sm + 4),
                       HomeActionCard(
@@ -227,7 +308,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         icon: Icons.videocam_rounded,
                         background: colors.primaryContainer,
                         foreground: colors.onPrimaryContainer,
-                        onTap: () => start('video'),
+                        onTap: registrationState.isRegistered
+                            ? () => start('video')
+                            : () => context.push('/settings/sip-account'),
                       ),
                       const SizedBox(height: RelaySpacing.xxl),
                       RelayStatusPill(registrationState.homeStatusLabel, color: statusColor),

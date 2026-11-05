@@ -9,6 +9,7 @@ class RelaySettingsTile extends StatelessWidget {
     this.leading,
     required this.title,
     this.value,
+    this.description,
     this.trailing,
     this.onTap,
     this.divider = true,
@@ -18,6 +19,7 @@ class RelaySettingsTile extends StatelessWidget {
   final Widget? leading;
   final String title;
   final String? value;
+  final String? description;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool divider;
@@ -41,6 +43,12 @@ class RelaySettingsTile extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(horizontal: RelaySpacing.md, vertical: 2),
           leading: leadingWidget,
           title: Text(title, style: const TextStyle(fontSize: 15)),
+          subtitle: description == null
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(top: RelaySpacing.xs),
+                  child: Text(description!, style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant)),
+                ),
           trailing:
               trailing ??
               Row(
