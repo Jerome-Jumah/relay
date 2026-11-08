@@ -44,7 +44,6 @@ class ScreenShareService : Service() {
         super.onCreate()
         Log.i(TAG, "[RelayShareNative] service onCreate")
         createNotificationChannel()
-        Log.i(TAG, "[RelayShareNative] notification channel ready")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -78,7 +77,6 @@ class ScreenShareService : Service() {
         }
 
         val notification = createNotification(currentPeer)
-        Log.i(TAG, "[RelayShareNative] calling startForeground")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID,
