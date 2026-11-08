@@ -42,6 +42,11 @@ class _TestSipController extends SipController {
   }
 }
 
+class _UnconfiguredSipController extends SipController {
+  @override
+  SipRegistrationState build() => const SipRegistrationState(status: SipRegistrationStatus.idle);
+}
+
 class _TestCallController extends CallController {
   @override
   CallStateData build() => const CallStateData();
@@ -92,11 +97,23 @@ void main() {
   );
 
   testWidgets('app boots at Home with Material 3', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: RelayApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sipControllerProvider.overrideWith(_UnconfiguredSipController.new),
+          callControllerProvider.overrideWith(_TestCallController.new),
+        ],
+        child: const RelayApp(),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.text('Ready to\nconnect'), findsOneWidget);
+    expect(find.text('Set up account'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
     final context = tester.element(find.byType(HomeScreen));
+    final container = ProviderScope.containerOf(context);
+    expect(container.read(sipControllerProvider).status, SipRegistrationStatus.idle);
+    expect(container.read(sipControllerProvider.notifier).currentConfig.isConfigured, isFalse);
     expect(GoRouter.of(context).routeInformationProvider.value.uri.path, '/');
     expect(Theme.of(context).useMaterial3, isTrue);
     expect(tester.takeException(), isNull);
@@ -243,7 +260,7 @@ void main() {
     router.dispose();
   });
 
-  testWidgets('settings screen displays app icon for relay, pubspec version, and github link', (tester) async {
+  testWidgets('settings screen displays Relay app icon and package version', (tester) async {
     final router = createRelayRouter(initialLocation: '/settings');
     await tester.pumpWidget(
       ProviderScope(
@@ -257,21 +274,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final versionFinder = find.text('1.0.0 (1)');
-    await tester.scrollUntilVisible(versionFinder, 500);
-    expect(versionFinder, findsOneWidget);
-
-    final githubFinder = find.text('Jerome-Jumah/relay');
-    await tester.scrollUntilVisible(githubFinder, 500);
-    expect(githubFinder, findsOneWidget);
+    final settingsScrollable = find.descendant(
+      of: find.byType(SettingsScreen),
+      matching: find.byType(Scrollable),
+    );
+    expect(settingsScrollable, findsOneWidget);
+    final versionTileFinder = find.widgetWithText(RelaySettingsTile, 'Version');
+    await tester.scrollUntilVisible(versionTileFinder, 500, scrollable: settingsScrollable);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: versionTileFinder, matching: find.text('1.0.0 (1)')),
+      findsOneWidget,
+    );
 
     final relayTileFinder = find.widgetWithText(RelaySettingsTile, 'Relay');
-    await tester.scrollUntilVisible(relayTileFinder, 500);
+    await tester.scrollUntilVisible(relayTileFinder, 500, scrollable: settingsScrollable);
     expect(relayTileFinder, findsOneWidget);
     expect(
       find.descendant(of: relayTileFinder, matching: find.byType(Image)),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
 
     await tester.pumpWidget(const SizedBox.shrink());
     router.dispose();
