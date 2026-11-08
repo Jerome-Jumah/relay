@@ -52,3 +52,11 @@ app.*.map.json
 .env.*
 !.env.example
 relay-designs/
+tmp
+.vscode/
+
+# Generated Android reports
+/android/build/
+/output/
+**/build/reports/
+/flutter_*.png
