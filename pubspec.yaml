@@ -48,8 +48,6 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   assets:
-    - .env
-    - assets/brand/
     - assets/launcher/
     - assets/images/
 
