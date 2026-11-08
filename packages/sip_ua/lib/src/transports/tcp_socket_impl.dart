@@ -26,7 +26,7 @@ class SIPUATcpSocketImpl {
       {Iterable<String>? protocols,
       required TcpSocketSettings tcpSocketSettings}) async {
     handleQueue();
-    logger.i('connect $_host:$_port');
+    logger.i('TCP connecting');
     try {
       if (tcpSocketSettings.allowBadCertificate) {
         // /// Allow self-signed certificate, for test only.
@@ -59,7 +59,6 @@ class SIPUATcpSocketImpl {
       return event;
     }).listen((dynamic event) async {
       _socket!.add(event.codeUnits);
-      logger.d('send: \n\n$event');
     });
   }
 

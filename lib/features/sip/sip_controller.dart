@@ -64,15 +64,19 @@ class SipController extends Notifier<SipRegistrationState> {
   }
 
   Future<void> saveAndRegister(SipAccountConfig config) async {
-    _currentConfig = config;
-    await _storage.saveConfig(config);
-
-    state = SipRegistrationState(status: SipRegistrationStatus.connecting, extension: config.extension);
+    final validationMessage = config.validationMessage;
+    if (validationMessage != null) {
+      state = state.copyWith(errorMessage: validationMessage);
+      return;
+    }
 
     try {
+      await _storage.saveConfig(config);
+      _currentConfig = config;
+      state = SipRegistrationState(status: SipRegistrationStatus.connecting, extension: config.extension);
       await _adapter.register(config);
     } catch (_) {
-      state = state.copyWith(status: SipRegistrationStatus.failed, errorMessage: 'Failed to initiate registration');
+      state = state.copyWith(status: SipRegistrationStatus.failed, errorMessage: 'Could not save or connect. Check your configuration and try again.');
     }
   }
 

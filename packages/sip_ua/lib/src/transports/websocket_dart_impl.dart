@@ -23,7 +23,7 @@ class SIPUAWebSocketImpl {
       {Iterable<String>? protocols,
       required WebSocketSettings webSocketSettings}) async {
     handleQueue();
-    logger.i('connect $_url, ${webSocketSettings.extraHeaders}, $protocols');
+    logger.i('WebSocket connecting');
     try {
       if (webSocketSettings.allowBadCertificate) {
         /// Allow self-signed certificate, for test only.
@@ -51,7 +51,6 @@ class SIPUAWebSocketImpl {
       return event;
     }).listen((dynamic event) async {
       _socket!.add(event);
-      logger.d('send: \n\n$event');
     });
   }
 

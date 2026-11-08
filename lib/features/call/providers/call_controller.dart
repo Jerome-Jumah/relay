@@ -1,4 +1,3 @@
-import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import 'package:relay/features/rtc_lab/models/rtc_lab_event.dart';
 import 'package:relay/features/rtc_lab/providers/rtc_lab_timeline.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/sip_controller.dart';
+import 'package:relay/shared/logging/relay-log.dart';
 import 'package:relay/shared/permissions/relay_permissions.dart';
 
 class CallController extends Notifier<CallStateData> {
@@ -1230,7 +1230,7 @@ class CallController extends Notifier<CallStateData> {
   }
 
   void _log(String message) {
-    developer.log('[RelayCall] $message', name: 'relay.call');
+    RelayLog.call(message);
   }
 }
 

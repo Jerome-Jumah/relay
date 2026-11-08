@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:relay/features/call/models/call_lifecycle.dart';
 import 'package:relay/features/call/models/call_session.dart';
@@ -9,6 +7,7 @@ import 'package:relay/features/call/models/requested_call_mode.dart';
 import 'package:relay/features/rtc_lab/models/rtc_lab_event.dart';
 import 'package:relay/features/sip/models/sip_account_config.dart';
 import 'package:relay/features/sip/models/sip_registration_state.dart';
+import 'package:relay/shared/logging/relay-log.dart';
 import 'package:sip_ua/sip_ua.dart';
 
 class RelaySipAdapter implements SipUaHelperListener {
@@ -27,6 +26,7 @@ class RelaySipAdapter implements SipUaHelperListener {
   void Function(RtcLabEventCategory category, String title, {String? detail})? onDiagnosticEvent;
 
   Call? _activeCall;
+  SipAccountConfig _config = const SipAccountConfig();
   DateTime? _answeredAt;
   Timer? _videoDiagnosticsTimer;
   int? _hookedPeerConnectionHash;
@@ -37,34 +37,28 @@ class RelaySipAdapter implements SipUaHelperListener {
   RTCPeerConnection? get peerConnection => _activeCall?.peerConnection;
   bool get isRegistered => _helper.registered;
 
-  static List<Map<String, String>> buildIceServers() {
-    final stunUrl = dotenv.env['STUN_URL']?.trim().isNotEmpty == true
-        ? dotenv.env['STUN_URL']!.trim()
-        : 'stun:turn.code4flare.com:3478';
-
-    final turnBase = dotenv.env['TURN_URL']?.trim().isNotEmpty == true
-        ? dotenv.env['TURN_URL']!.trim()
-        : 'turn:turn.code4flare.com:3478';
-
-    final turnUsername = dotenv.env['TURN_USERNAME']?.trim() ?? '';
-    final turnPassword = dotenv.env['TURN_PASSWORD']?.trim() ?? '';
+  List<Map<String, String>> buildIceServers() {
+    final stunUrl = _config.stunUrl.trim();
+    final turnBase = _config.turnUrl.trim();
+    final turnUsername = _config.turnUsername.trim();
+    final turnPassword = _config.turnPassword;
 
     final udpTurnUrl = turnBase.contains('?') ? turnBase : '$turnBase?transport=udp';
     final tcpTurnUrl = turnBase.contains('?') ? turnBase : '$turnBase?transport=tcp';
 
     return [
-      {'urls': stunUrl},
-      if (turnUsername.isNotEmpty && turnPassword.isNotEmpty) ...[
+      if (stunUrl.isNotEmpty) {'urls': stunUrl},
+      if (turnBase.isNotEmpty && turnUsername.isNotEmpty && turnPassword.isNotEmpty) ...[
         {'urls': udpTurnUrl, 'username': turnUsername, 'credential': turnPassword},
-        {'urls': tcpTurnUrl, 'username': turnUsername, 'credential': turnPassword},
+        if (tcpTurnUrl != udpTurnUrl)
+          {'urls': tcpTurnUrl, 'username': turnUsername, 'credential': turnPassword},
       ],
     ];
   }
 
   Future<void> register(SipAccountConfig config) async {
+    _config = config;
     _log('Initiating registration for URI: ${config.sipUri}');
-    _log('Signaling WebSocket URL: ${config.webSocketUrl}');
-    _log('Authorization user: ${config.authorizationUser}');
 
     onStatusChanged?.call(SipRegistrationStatus.connecting);
 
@@ -79,10 +73,6 @@ class RelaySipAdapter implements SipUaHelperListener {
 
     final iceServers = buildIceServers();
     uaSettings.iceServers = iceServers;
-    final hasTurn = dotenv.env['TURN_USERNAME']?.trim().isNotEmpty == true;
-    _log(
-      'Configured ${iceServers.length} ICE server(s): ${iceServers.map((s) => s['urls']).join(', ')} (TURN credentials: ${hasTurn ? 'present' : 'none'})',
-    );
 
     await _helper.start(uaSettings);
   }
@@ -232,8 +222,7 @@ class RelaySipAdapter implements SipUaHelperListener {
         _log('Transport socket connected');
       case TransportStateEnum.DISCONNECTED:
         _log('Transport socket disconnected');
-        final error = state.cause?.cause;
-        onStatusChanged?.call(SipRegistrationStatus.disconnected, errorMessage: error);
+        onStatusChanged?.call(SipRegistrationStatus.disconnected, errorMessage: 'Connection lost. Check your server and network.');
       case TransportStateEnum.NONE:
         break;
     }
@@ -686,10 +675,6 @@ class RelaySipAdapter implements SipUaHelperListener {
         return 'Microphone permission denied';
       }
       if (causeText.contains('CANCELED')) return 'Call canceled';
-      final reasonPhrase = cause.reason_phrase?.toString();
-      if (reasonPhrase != null && reasonPhrase.isNotEmpty) {
-        return reasonPhrase;
-      }
     } catch (_) {}
     return 'Call failed';
   }
@@ -700,14 +685,6 @@ class RelaySipAdapter implements SipUaHelperListener {
       final statusCode = cause.status_code;
       if (statusCode == 401 || statusCode == 403) {
         return 'Authentication failed. Please check extension and password.';
-      }
-      final reasonPhrase = cause.reason_phrase;
-      if (reasonPhrase != null && reasonPhrase.toString().isNotEmpty) {
-        return reasonPhrase.toString();
-      }
-      final causeText = cause.cause;
-      if (causeText != null && causeText.toString().isNotEmpty) {
-        return causeText.toString();
       }
     } catch (_) {}
     return 'Registration failed';
@@ -977,6 +954,6 @@ class RelaySipAdapter implements SipUaHelperListener {
   }
 
   void _log(String message) {
-    developer.log('[RelaySIP] $message', name: 'relay.sip');
+    RelayLog.sip(message);
   }
 }

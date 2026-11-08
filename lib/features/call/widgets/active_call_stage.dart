@@ -1,4 +1,3 @@
-import 'dart:developer' as developer;
 
 import 'package:cue/cue.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -77,11 +76,6 @@ class ActiveCallStage extends StatelessWidget {
     final basePresentation = isSharing ? (presentationBeforeSharing ?? CallPresentation.audio) : presentation;
     final isVideo = basePresentation == CallPresentation.video;
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
-
-    developer.log(
-      '[RelayCallUI] presentation=$presentation basePresentation=$basePresentation isVideo=$isVideo hasRemoteVideo=$hasRemoteVideo',
-      name: 'relay.call',
-    );
 
     return Cue.onToggle(
       toggled: isSharing,

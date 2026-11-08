@@ -290,12 +290,6 @@ class SocketTransport {
         );
         return;
       }
-      logger.d('received binary message:\n\n$data\n');
-    }
-
-    // Text message.
-    else {
-      logger.d('received text message:\n\n$data\n');
     }
 
     ondata(this, data);

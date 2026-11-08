@@ -21,7 +21,7 @@ class SIPUAWebSocketImpl {
   void connect(
       {Iterable<String>? protocols,
       required WebSocketSettings webSocketSettings}) async {
-    logger.i('connect $_url, ${webSocketSettings.extraHeaders}, $protocols');
+    logger.i('WebSocket connecting');
     try {
       _socket = WebSocket(_url, 'sip');
       _socket!.onOpen.listen((Event e) {
@@ -49,9 +49,8 @@ class SIPUAWebSocketImpl {
   void send(dynamic data) {
     if (_socket != null && _socket!.readyState == WebSocket.OPEN) {
       _socket!.send(data);
-      logger.d('send: \n\n$data');
     } else {
-      logger.e('WebSocket not connected, message $data not sent');
+      logger.e('WebSocket send skipped: disconnected');
     }
   }
 

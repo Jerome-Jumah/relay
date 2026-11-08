@@ -1,5 +1,5 @@
 import 'grammar_parser.dart';
-import 'parser_error.dart';
+import 'logger.dart';
 
 class Grammar {
   static dynamic parse(String input, String startRule) {
@@ -7,15 +7,8 @@ class Grammar {
     dynamic result = parser.parse(input, startRule);
     if (!parser.success) {
       result = parser.parse(input, startRule);
-      List<ParserErrorMessage> messages = <ParserErrorMessage>[];
-      for (GrammarParserError error in parser.errors()) {
-        messages.add(
-            ParserErrorMessage(error.message, error.start, error.position));
-      }
-
-      List<String> strings = ParserErrorFormatter.format(parser.text, messages);
-      print('input => $input, rule => $startRule');
-      print(strings.join('\n'));
+      // Parser context may contain authentication headers or SDP credentials.
+      logger.w('SIP grammar parse failed');
       throw FormatException();
     }
     return result;

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,7 +60,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (ref.read(callControllerProvider).localVideoActive) {
         final local = ref.read(callControllerProvider.notifier).localStream;
         _localRenderer.srcObject = local;
-        developer.log('[RelayCallUI] localRenderer.srcObject assigned on init: id=${local?.id}', name: 'relay.call');
       }
     }
   }
@@ -73,7 +71,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
     if (_remoteRenderer.srcObject != remote || force) {
       _remoteRenderer.srcObject = remote;
-      developer.log('[RelayCallUI] remoteRenderer.srcObject assigned: id=${remote?.id}', name: 'relay.call');
     }
   }
 
@@ -176,10 +173,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       if (!wasLocalActive && isLocalActive) {
         final local = ref.read(callControllerProvider.notifier).localStream;
         _localRenderer.srcObject = local;
-        developer.log('[RelayCallUI] localRenderer.srcObject bound: id=${local?.id}', name: 'relay.call');
       } else if (wasLocalActive && !isLocalActive) {
         _localRenderer.srcObject = null;
-        developer.log('[RelayCallUI] localRenderer.srcObject cleared on downgrade', name: 'relay.call');
       }
 
       final remoteBecameActive = previous?.remoteVideoActive != true && next.remoteVideoActive;
@@ -203,11 +198,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
     final effectivePresentation = callState.presentation;
     final presentationBeforeSharing = ref.read(callControllerProvider.notifier).presentationBeforeSharing;
-
-    developer.log(
-      '[RelayCallUI] effectivePresentation=$effectivePresentation remoteVideoActive=${callState.remoteVideoActive} localVideoActive=${callState.localVideoActive}',
-      name: 'relay.call',
-    );
 
     return CallLayout(
       edgeToEdge: true,
