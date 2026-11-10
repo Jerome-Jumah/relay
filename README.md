@@ -175,9 +175,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution, validation and licensin
 ## Conference and learning resources
 
 - Talk: **Demystifying WebRTC in Flutter: VoIP and Screen Sharing**, Droidcon Kenya × FlutterCon Kenya.
-- Public presentation slides: **TODO — owner to supply the reviewed public URL.**
-- Conference recording: **TODO — add only if available and approved.**
-- Android screen-sharing article: **TODO — owner to supply the public URL.**
+- Public presentation slides: [Demystifying WebRTC in Flutter: VoIP and Screen Sharing](https://docs.google.com/presentation/d/1xfdX9n4dSiblXq2eoPiwLYilKflbKqOy0F_ICZ_0mIo/edit?usp=sharing).
+- Conference recording: **Coming soon.**
+- Android screen-sharing article: [Flutter WebRTC Screen Sharing on Android 14: The Missing Guide](https://medium.com/@owinojumahjerome/flutter-webrtc-screen-sharing-on-android-14-the-missing-guide-4f45391055f3?sharedUserId=owinojumahjerome).
 - Companion backend: [relay-server](https://github.com/Jerome-Jumah/relay-server) — confirm public access and add a tested revision.
 - [Upstream Dart SIP UA](https://github.com/flutter-webrtc/dart-sip-ua).
 - [Flutter WebRTC](https://github.com/flutter-webrtc/flutter-webrtc).
